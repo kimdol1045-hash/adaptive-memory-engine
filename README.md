@@ -52,7 +52,26 @@ python -m pip install \
 설치가 끝나면 다음 명령어로 확인합니다.
 
 ```bash
+hash -r
+which memory
 memory --help
+```
+
+`which memory`가 `~/.ame/bin/memory` 또는 현재 활성화한 가상환경의 `bin/memory`를 가리키면 정상입니다.
+예전 전역 설치 경로가 나온다면 가상환경을 다시 활성화하고 zsh 명령어 캐시를 갱신합니다.
+
+```bash
+source ~/.ame/bin/activate
+hash -r
+which memory
+```
+
+`memory setup`에서 `No such command 'setup'`이 나오면 최신 core 패키지가 아니라 예전 CLI가 실행되고 있는 상태입니다.
+이때는 다음처럼 가상환경 안의 실행 파일을 직접 호출해 확인할 수 있습니다.
+
+```bash
+~/.ame/bin/memory --help
+~/.ame/bin/memory setup
 ```
 
 `pipx`를 이미 쓰고 있다면 다음 방식도 가능합니다.

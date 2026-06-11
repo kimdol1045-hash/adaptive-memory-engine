@@ -36,7 +36,27 @@ python -m pip install \
 Check the install:
 
 ```bash
+hash -r
+which memory
 memory --help
+```
+
+`which memory` should point to `~/.ame/bin/memory` or the `bin/memory` inside
+your active virtual environment. If it points to an older global install,
+reactivate the environment and refresh the zsh command cache:
+
+```bash
+source ~/.ame/bin/activate
+hash -r
+which memory
+```
+
+If `memory setup` prints `No such command 'setup'`, an older CLI is being
+executed. You can verify the virtualenv command directly:
+
+```bash
+~/.ame/bin/memory --help
+~/.ame/bin/memory setup
 ```
 
 If you already use `pipx`, this also works:
