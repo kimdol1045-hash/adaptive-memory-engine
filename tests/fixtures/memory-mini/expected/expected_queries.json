@@ -1,0 +1,27 @@
+[
+  {
+    "id": "Q001",
+    "question": "현재 사용하는 RAG 저장·검색 코어는?",
+    "expected_answer_contains": ["LightRAG"],
+    "required_sources": ["002_lightrag_selected.md"]
+  },
+  {
+    "id": "Q002",
+    "question": "왜 GraphRAG를 직접 구현하지 않았지?",
+    "expected_answer_contains": ["범위", "16GB", "검증된 OSS", "현실적"],
+    "required_sources": ["001_rag_core_considered.md", "002_lightrag_selected.md"]
+  },
+  {
+    "id": "Q003",
+    "question": "Obsidian Export가 왜 필요하지?",
+    "expected_answer_contains": ["사용자는 그래프 데이터베이스를 직접 보지 않는다", "사람이 읽을 수 있는", "Markdown Vault"],
+    "required_sources": ["003_obsidian_required.md"]
+  },
+  {
+    "id": "Q004",
+    "question": "16GB 환경에서는 어떤 로컬 LLM을 사용하지?",
+    "expected_answer_contains": ["Qwen3 8B Q4"],
+    "expected_answer_not_current": ["Qwen3 32B"],
+    "required_sources": ["004_model_tier_decision.md"]
+  }
+]

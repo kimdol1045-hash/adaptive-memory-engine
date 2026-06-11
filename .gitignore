@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.coverage
+htmlcov/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ame*/
+exports/
+tests/out/
+.venv/
+dist/
+build/
+*.egg-info/
+content/
+/docs/adaptive_memory_engine_*.md
+/adaptive_memory_engine_*.md

@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "adaptive-memory-engine"
+version = "0.1.0"
+description = "Local-first CLI memory engine that builds Bronze/Silver/Gold RAG memory from local documents."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+keywords = [
+  "ai",
+  "rag",
+  "local-first",
+  "mcp",
+  "memory",
+  "ollama",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Text Processing :: Indexing",
+]
+dependencies = [
+  "pydantic>=2.7",
+  "typer>=0.12",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+lightrag = [
+  "lightrag-hku",
+  "ollama",
+]
+
+[project.scripts]
+memory = "ame.cli.main:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ame", "src/memory"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/tests",
+  "/examples",
+  "/README.md",
+  "/CHANGELOG.md",
+  "/LICENSE",
+  "/pyproject.toml",
+  "/docs/product_user_flow.md",
+  "/docs/standalone_distribution.md",
+  "/docs/release_distribution_plan.md",
+]
+exclude = [
+  "**/.DS_Store",
+  "**/__pycache__",
+  "**/*.pyc",
+  "/.ame",
+  "/.pytest_cache",
+  "/benchmark",
+  "/content",
+  "/dist",
+  "/build",
+  "/exports",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

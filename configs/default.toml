@@ -1,0 +1,35 @@
+[engine]
+confidence_threshold = 0.7
+
+[storage]
+home = "~/Library/Application Support/ame"
+
+[lightrag]
+backend = "auto"
+query_mode = "hybrid"
+ollama_host = "http://127.0.0.1:11434"
+llm_model = "qwen3:8b"
+embedding_model = "nomic-embed-text"
+embedding_dim = 768
+max_token_size = 8192
+
+[slack]
+client_id = ""
+client_secret = ""
+redirect_uri = "http://localhost:8765/slack/oauth/callback"
+scopes = ["channels:read", "channels:history", "groups:read", "groups:history"]
+
+[google]
+client_id = ""
+client_secret = ""
+redirect_uri = "http://localhost:8765/google/oauth/callback"
+scopes = [
+  "https://www.googleapis.com/auth/drive.readonly",
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/calendar.readonly",
+  "https://www.googleapis.com/auth/spreadsheets.readonly",
+]
+
+[security]
+token_backend = "file"
+pii_redaction = "off"

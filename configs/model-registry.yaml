@@ -1,0 +1,82 @@
+version: 1
+tiers:
+  T1:
+    min_ram_gb: 16
+    extract:
+      model: qwen3:8b
+      runtime: ollama
+    verify:
+      model: qwen3:8b
+      runtime: ollama
+    synthesize:
+      model: qwen3:8b
+      runtime: ollama
+      fallback: api
+    embed:
+      model: nomic-embed-text
+      runtime: ollama
+      dim: 768
+
+  T2:
+    min_ram_gb: 32
+    extract:
+      model: qwen3:14b-q4
+      runtime: ollama
+    verify:
+      model: qwen3:14b-q4
+      runtime: ollama
+    synthesize:
+      model: qwen3:14b-q4
+      runtime: ollama
+    embed:
+      model: bge-m3
+      runtime: local
+      dim: 1024
+
+  T3:
+    min_ram_gb: 48
+    extract:
+      model: qwen3:30b-a3b
+      runtime: ollama
+    verify:
+      model: qwen3:30b-a3b
+      runtime: ollama
+    synthesize:
+      model: qwen3:32b-q4
+      runtime: ollama
+    embed:
+      model: bge-m3
+      runtime: local
+      dim: 1024
+
+  T4:
+    min_ram_gb: 64
+    extract:
+      model: qwen3:32b-q5
+      runtime: ollama
+    verify:
+      model: qwen3:32b-q5
+      runtime: ollama
+    synthesize:
+      model: qwen3:32b-q5
+      runtime: ollama
+    embed:
+      model: bge-m3
+      runtime: local
+      dim: 1024
+
+  T5:
+    min_ram_gb: 128
+    extract:
+      model: qwen3:70b-q4
+      runtime: ollama
+    verify:
+      model: qwen3:70b-q4
+      runtime: ollama
+    synthesize:
+      model: qwen3:70b-q4
+      runtime: ollama
+    embed:
+      model: bge-m3-large
+      runtime: local
+      dim: 1024

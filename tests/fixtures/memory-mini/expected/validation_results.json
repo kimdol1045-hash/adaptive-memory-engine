@@ -1,0 +1,184 @@
+{
+  "dataset": "memory-mini",
+  "source_spec": "adaptive_memory_engine_validation_dataset_spec_v1.md",
+  "generated_at": "2026-06-09",
+  "status": "passed",
+  "test_runs": [
+    {
+      "name": "memory-mini dataset tests",
+      "command": "python3 -m pytest tests/test_memory_mini_dataset.py -q",
+      "status": "passed",
+      "tests": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "name": "full pytest suite",
+      "command": "python3 -m pytest -q",
+      "status": "passed",
+      "tests": 31,
+      "passed": 31,
+      "failed": 0
+    }
+  ],
+  "ingest_result": {
+    "command": "AME_HOME=/private/tmp/ame-memory-mini-report python3 -m ame.cli.main ingest memory-mini ./tests/fixtures/memory-mini/docs",
+    "status": "passed",
+    "mode": "deterministic",
+    "documents": 10,
+    "gold_nodes": 70,
+    "gold_edges": 44,
+    "rejected_items": 1,
+    "custom_kg_path": "/private/tmp/ame-memory-mini-report/corpora/memory-mini/store/lightrag/custom_kg.json"
+  },
+  "validation_checks": [
+    {
+      "id": "bronze_document_count",
+      "description": "Bronze store contains all memory-mini markdown documents.",
+      "expected": 10,
+      "actual": 10,
+      "status": "passed"
+    },
+    {
+      "id": "type_gate_invalid_relation",
+      "description": "Person USES Tool relation is rejected.",
+      "expected_rejected_relation": {
+        "subject": "Alice",
+        "predicate": "USES",
+        "object": "LightRAG"
+      },
+      "actual_rejected_relations": [
+        {
+          "kind": "relation",
+          "reason": "validation_failed",
+          "subject": "Alice",
+          "predicate": "USES",
+          "object": "LightRAG"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "id": "supersedes_edges",
+      "description": "Gold layer contains expected SUPERSEDES edges.",
+      "expected_edges": [
+        {
+          "source": "LightRAG 도입 결정",
+          "relation": "SUPERSEDES",
+          "target": "GraphRAG 직접 구현 검토"
+        },
+        {
+          "source": "Gold 데이터를 LightRAG custom_kg로 주입",
+          "relation": "SUPERSEDES",
+          "target": "Gold 데이터를 자체 JSON 파일에만 저장"
+        }
+      ],
+      "actual_edges": [
+        {
+          "source": "LightRAG 도입 결정",
+          "relation": "SUPERSEDES",
+          "target": "GraphRAG 직접 구현 검토"
+        },
+        {
+          "source": "Gold 데이터를 LightRAG custom_kg로 주입",
+          "relation": "SUPERSEDES",
+          "target": "Gold 데이터를 자체 JSON 파일에만 저장"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "query_results": [
+    {
+      "id": "Q001",
+      "question": "현재 사용하는 RAG 저장·검색 코어는?",
+      "status": "passed",
+      "expected_answer_contains": ["LightRAG"],
+      "actual_answer_contains": ["LightRAG"],
+      "required_sources": ["002_lightrag_selected.md"],
+      "actual_sources_found": ["002_lightrag_selected.md"],
+      "answer_excerpt": "Adaptive Memory Engine에서는 저장·검색 코어로 LightRAG를 사용하기로 결정했다."
+    },
+    {
+      "id": "Q002",
+      "question": "왜 GraphRAG를 직접 구현하지 않았지?",
+      "status": "passed",
+      "expected_answer_contains": ["범위", "16GB", "검증된 OSS", "현실적"],
+      "actual_answer_contains": ["범위", "16GB", "검증된 OSS", "현실적"],
+      "required_sources": ["001_rag_core_considered.md", "002_lightrag_selected.md"],
+      "actual_sources_found": ["001_rag_core_considered.md", "002_lightrag_selected.md"],
+      "answer_excerpt": "GraphRAG 직접 구현은 MVP 범위에서 제외한다. 이유는 16GB Mac에서도 동작해야 하고, 저장·검색은 검증된 OSS를 활용하는 것이 더 현실적이기 때문이다."
+    },
+    {
+      "id": "Q003",
+      "question": "Obsidian Export가 왜 필요하지?",
+      "status": "passed",
+      "expected_answer_contains": ["사용자는 그래프 데이터베이스를 직접 보지 않는다", "사람이 읽을 수 있는", "Markdown Vault"],
+      "actual_answer_contains": ["사용자는 그래프 데이터베이스를 직접 보지 않는다", "사람이 읽을 수 있는", "Markdown Vault"],
+      "required_sources": ["003_obsidian_required.md"],
+      "actual_sources_found": ["003_obsidian_required.md"],
+      "answer_excerpt": "사용자는 그래프 데이터베이스를 직접 보지 않는다. 따라서 Gold Memory는 사람이 읽을 수 있는 Obsidian Markdown Vault로 내보낼 수 있어야 한다."
+    },
+    {
+      "id": "Q004",
+      "question": "16GB 환경에서는 어떤 로컬 LLM을 사용하지?",
+      "status": "passed",
+      "expected_answer_contains": ["Qwen3 8B Q4"],
+      "actual_answer_contains": ["Qwen3 8B Q4"],
+      "expected_answer_not_current": ["Qwen3 32B"],
+      "actual_answer_not_current": ["Qwen3 32B"],
+      "required_sources": ["004_model_tier_decision.md"],
+      "actual_sources_found": ["004_model_tier_decision.md"],
+      "answer_excerpt": "16GB 환경에서는 Qwen3 8B Q4를 사용한다."
+    },
+    {
+      "id": "Q009",
+      "question": "MVP 전에 막아야 하는 high priority 이슈는?",
+      "status": "passed",
+      "expected_answer_contains": ["Relation Extraction", "잘못된 관계", "Validation Gate", "high"],
+      "actual_answer_contains": ["Relation Extraction", "잘못된 관계", "Validation Gate", "high"],
+      "required_sources": ["009_issue_log.md"],
+      "actual_sources_found": ["009_issue_log.md"],
+      "answer_excerpt": "이 이슈의 우선순위는 high이며, MVP 이전에 Validation Gate로 방지해야 한다."
+    }
+  ],
+  "obsidian_export": {
+    "command": "AME_HOME=/private/tmp/ame-memory-mini-report python3 -m ame.cli.main export obsidian memory-mini /private/tmp/ame-memory-mini-report-vault",
+    "status": "passed",
+    "exported_notes": 71,
+    "output_dir": "/private/tmp/ame-memory-mini-report-vault",
+    "required_files": [
+      {
+        "path": "Projects/Adaptive Memory Engine.md",
+        "status": "passed",
+        "must_contain": ["LightRAG", "Markdown", "Obsidian", "Bronze", "Silver", "Gold"]
+      },
+      {
+        "path": "Tools/LightRAG.md",
+        "status": "passed",
+        "must_contain": ["저장·검색 코어", "custom_kg", "Adaptive Memory Engine"]
+      },
+      {
+        "path": "Decisions/LightRAG 도입 결정.md",
+        "status": "passed",
+        "must_contain": ["GraphRAG 직접 구현", "16GB Mac", "검증된 OSS", "SUPERSEDES"]
+      },
+      {
+        "path": "Decisions/MVP 범위 확정.md",
+        "status": "passed",
+        "must_contain": ["Markdown", "Obsidian", "Slack, Jira, GitHub Connector는 MVP 범위에서 제외"]
+      },
+      {
+        "path": "Issues/Relation Extraction 잘못된 관계 생성.md",
+        "status": "passed",
+        "must_contain": ["high", "Validation Gate", "Person이 Tool을 USES"]
+      }
+    ]
+  },
+  "known_limitations": [
+    {
+      "area": "local query fallback",
+      "description": "Keyword fallback can include broad related documents in the answer. Required phrase/source checks pass, but ranking is not yet as strict as a production retriever."
+    }
+  ]
+}
