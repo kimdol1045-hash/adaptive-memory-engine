@@ -1,9 +1,12 @@
 # Adaptive Memory Engine Core
 
-Standalone terminal package for the Adaptive Memory Engine. This folder contains
-only the engine code, CLI, examples, configs, benchmarks, and engine tests. The
-Chronicle app, web UI, service layer, and Chronicle-specific tests are not
-included.
+Adaptive Memory Engine Core is a local-first memory engine that turns local
+documents into Bronze/Silver/Gold memory and exposes that memory to MCP clients
+such as Codex and Claude Code.
+
+The preferred UX is agent-first: connect AME through MCP, then ask Codex or
+Claude Code to diagnose hardware, recommend models, build memory, and answer
+questions in natural language.
 
 ## Platform Support
 
@@ -86,7 +89,8 @@ python3 -m pip install -e ".[dev]"
 ## Agent-First Quick Start
 
 The recommended flow is to connect AME to Codex or Claude Code first, then ask
-the agent to run setup in natural language.
+the agent to run setup in natural language. After installation, the main command
+you run manually is the MCP config command.
 
 Print a bootstrap MCP config:
 
@@ -106,6 +110,7 @@ corpus exists and exposes setup tools:
 - `ame_doctor`: diagnose hardware, AME runtime, and recommended local models
 - `ame_setup`: plan or execute recommended model downloads
 - `ame_load`: build Bronze/Silver/Gold memory from a document folder
+- `ame_corpora`: list locally built corpora
 - `memory_search`, `memory_query`: answer questions from a built corpus
 
 Then ask Codex or Claude Code:
@@ -115,6 +120,12 @@ Diagnose my computer for AME and recommend local models.
 If downloads are needed, show me the model plan first.
 After I approve, install the models and build memory from this document folder.
 Once memory is built, answer questions from that local memory.
+```
+
+When passing documents, give the local folder path:
+
+```text
+Build memory named my-docs from this folder: /Users/me/Documents/planning
 ```
 
 Model downloads can take time and disk space. Agents should call `ame_setup`
@@ -184,20 +195,33 @@ ame> /exit
 
 ## Claude Code / Codex via MCP
 
-Use the CLI for setup and ingestion, then run the stdio MCP server for editor
-or agent clients:
+AME supports two MCP modes.
+
+Use bootstrap MCP when no corpus exists yet and you want Codex or Claude Code to
+handle diagnosis, setup, and memory build:
 
 ```bash
-export AME_HOME="$PWD/.ame"
-memory setup --execute
-memory load my-docs ./path/to/markdown-docs
+memory mcp stdio
+```
+
+Use corpus-bound MCP when a corpus already exists and the client should only
+query that corpus:
+
+```bash
 memory mcp stdio my-docs
 ```
 
 Once connected through MCP, you can ask from Codex or Claude Code without
 typing `memory query ...` for each question.
 
-To print the client config snippet:
+To print a bootstrap client config:
+
+```bash
+memory connect --client codex
+memory connect --client claude
+```
+
+To print a corpus-bound client config:
 
 ```bash
 memory connect my-docs --client codex
@@ -209,14 +233,15 @@ The underlying MCP server command shape is:
 ```json
 {
   "command": "memory",
-  "args": ["mcp", "stdio", "my-docs"],
+  "args": ["mcp", "stdio"],
   "env": {
     "AME_HOME": "/absolute/path/to/.ame"
   }
 }
 ```
 
-Available MCP tools include `memory_search`, `memory_retrieve`,
+Bootstrap MCP tools include `ame_doctor`, `ame_setup`, `ame_load`,
+`ame_connect`, `ame_corpora`, `memory_search`, `memory_retrieve`,
 `memory_graph`, `memory_decisions`, `memory_timeline`, `memory_why`,
 `memory_diff`, `memory_write_decision`, and `memory_write_note`.
 

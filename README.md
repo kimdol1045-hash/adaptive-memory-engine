@@ -3,8 +3,11 @@
 [English](README.en.md)
 
 Adaptive Memory Engine Core는 로컬 문서를 Bronze/Silver/Gold 구조로 정리하고,
-그 결과를 Codex, Claude Code 같은 MCP 클라이언트에서 바로 사용할 수 있게 해주는
-local-first CLI 메모리 엔진입니다.
+그 결과를 Codex, Claude Code 같은 MCP 클라이언트가 조회할 수 있게 해주는
+local-first 메모리 엔진입니다.
+
+사용자가 매번 긴 CLI 명령어를 직접 입력하는 것보다, AME를 MCP로 연결한 뒤
+Codex나 Claude Code에게 자연어로 맡기는 사용 방식을 우선합니다.
 
 현재는 alpha 단계이며, 패키지는 TestPyPI를 통해 베타 배포하고 있습니다.
 
@@ -13,14 +16,13 @@ local-first CLI 메모리 엔진입니다.
 목표 사용 흐름은 다음과 같습니다.
 
 ```text
-Claude Code 또는 Codex 터미널 실행
-  -> AME 설치
-  -> 컴퓨터 사양 진단
-  -> 로컬 LLM 추천
-  -> 모델 다운로드
-  -> 내 문서 로드
-  -> Bronze/Silver/Gold RAG 메모리 구축
-  -> 터미널 chat 모드 또는 MCP로 질문
+AME 설치
+  -> Codex 또는 Claude Code에 AME MCP 연결
+  -> "내 컴퓨터 사양 진단해줘"라고 말하기
+  -> "추천 모델 알려줘"라고 말하기
+  -> "승인할게. 모델 설치해줘"라고 말하기
+  -> "이 문서 폴더로 메모리 구축해줘"라고 말하기
+  -> 이후에는 구축된 로컬 메모리를 기준으로 자연어 질문
 ```
 
 ## 지원 환경
@@ -107,24 +109,26 @@ export AME_HOME="$PWD/.ame"
 ## 빠른 시작: Codex/Claude Code에서 자연어로 쓰기
 
 권장 흐름은 사용자가 모든 명령어를 직접 치는 방식이 아니라, Codex나 Claude Code에 AME MCP를 연결한 뒤 자연어로 맡기는 방식입니다.
+사용자가 직접 실행해야 하는 명령어는 설치 후 MCP 설정을 출력하는 정도입니다.
 
-먼저 AME bootstrap MCP 설정을 출력합니다.
+Codex용 bootstrap MCP 설정을 출력합니다.
 
 ```bash
 memory connect --client codex
 ```
 
-또는 Claude Code용 설정을 출력합니다.
+Claude Code를 쓰면 Claude용 설정을 출력합니다.
 
 ```bash
 memory connect --client claude
 ```
 
-출력된 MCP 설정을 클라이언트에 추가하면, 아직 corpus가 없어도 Codex/Claude Code가 다음 작업을 도구로 수행할 수 있습니다.
+출력된 MCP 설정을 클라이언트에 추가하면, 아직 corpus가 없어도 Codex/Claude Code가 AME 초기 설정을 도구로 수행할 수 있습니다.
 
 - `ame_doctor`: 컴퓨터 사양, AME 런타임, 추천 로컬 모델 진단
 - `ame_setup`: 추천 모델 다운로드 계획 또는 실행
 - `ame_load`: 문서 폴더를 Bronze/Silver/Gold 메모리로 구축
+- `ame_corpora`: 로컬에 구축된 corpus 목록 확인
 - `memory_search`, `memory_query`: 구축된 메모리 기반 질문
 
 그 다음 Codex나 Claude Code에 이렇게 말하면 됩니다.
@@ -132,8 +136,14 @@ memory connect --client claude
 ```text
 내 컴퓨터 사양을 진단하고 AME에 맞는 로컬 모델을 추천해줘.
 모델 다운로드가 필요하면 먼저 어떤 모델을 받을지 알려줘.
-승인하면 모델을 설치하고, 내가 지정한 문서 폴더로 메모리를 구축해줘.
+내가 승인하면 모델을 설치하고, 내가 지정한 문서 폴더로 메모리를 구축해줘.
 구축이 끝나면 그 메모리를 기준으로 질문에 답해줘.
+```
+
+문서 폴더를 넘길 때는 로컬 경로를 함께 말하면 됩니다.
+
+```text
+이 폴더를 my-docs라는 이름으로 메모리화해줘: /Users/me/Documents/planning
 ```
 
 모델 다운로드는 디스크와 시간이 필요하므로, 에이전트가 `ame_setup`을 실행할 때는 먼저 계획을 보여주고 사용자 승인을 받은 뒤 `execute=true`로 진행하는 것이 좋습니다.
@@ -209,31 +219,48 @@ memory load my-docs ./path/to/docs --mode deterministic
 
 ## MCP 연결
 
-AME는 문서 메모리를 만든 뒤, MCP stdio 서버로 Codex나 Claude Code에 연결할 수 있습니다.
-MCP로 연결하면 터미널에서 `memory query ...`를 매번 입력하지 않고, Codex나 Claude Code 안에서 평소처럼 질문하면 됩니다.
+AME는 두 가지 MCP 연결 방식을 제공합니다.
+
+아직 corpus가 없고, Codex/Claude Code가 사양 진단부터 메모리 구축까지 진행하게 하려면 bootstrap MCP를 사용합니다.
+
+```bash
+memory mcp stdio
+```
+
+이미 만들어진 특정 corpus만 조회하게 하려면 corpus-bound MCP를 사용합니다.
 
 ```bash
 memory mcp stdio my-docs
 ```
 
-`memory connect` 명령어는 클라이언트 설정에 넣을 JSON 형태를 출력합니다.
+`memory connect` 명령어는 클라이언트 설정에 넣을 JSON 형태를 출력합니다. corpus 없이 실행하면 bootstrap MCP 설정을 출력합니다.
+
+```bash
+memory connect --client codex
+```
+
+특정 corpus에 고정하려면 corpus id를 함께 넘깁니다.
+
+```bash
+memory connect my-docs --client codex
+```
 
 ```json
 {
   "command": "memory",
-  "args": ["mcp", "stdio", "my-docs"],
+  "args": ["mcp", "stdio"],
   "env": {
     "AME_HOME": "/absolute/path/to/.ame"
   }
 }
 ```
 
-MCP는 연결 계층입니다. 문서를 직접 분석하는 역할은 `memory load` 단계에서 수행하고,
-MCP는 이미 구축된 로컬 메모리를 Codex, Claude Code, 기타 MCP 클라이언트에 노출합니다.
+MCP는 연결 계층입니다. bootstrap MCP에서는 Codex/Claude Code가 `ame_load` 도구를 호출해 문서 메모리를 구축할 수 있고,
+corpus-bound MCP에서는 이미 구축된 로컬 메모리만 조회하도록 제한할 수 있습니다.
 
-사용 가능한 MCP 도구에는 `memory_search`, `memory_retrieve`, `memory_graph`,
-`memory_decisions`, `memory_timeline`, `memory_why`, `memory_diff`,
-`memory_write_decision`, `memory_write_note`가 포함됩니다.
+bootstrap MCP에서 사용할 수 있는 도구에는 `ame_doctor`, `ame_setup`, `ame_load`, `ame_connect`, `ame_corpora`,
+`memory_search`, `memory_retrieve`, `memory_graph`, `memory_decisions`, `memory_timeline`, `memory_why`,
+`memory_diff`, `memory_write_decision`, `memory_write_note`가 포함됩니다.
 
 ## 로컬 LLM 추출
 
