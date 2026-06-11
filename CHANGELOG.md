@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 - 2026-06-11
+
+- Added `memory chat <corpus>` for interactive terminal questions without typing `memory query` each time.
+- Updated Korean and English README usage docs to show terminal chat mode and MCP usage more clearly.
+
 ## 0.1.0 - 2026-06-11
 
 Initial alpha release.

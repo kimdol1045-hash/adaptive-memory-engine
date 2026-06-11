@@ -20,8 +20,7 @@ Claude Code 또는 Codex 터미널 실행
   -> 모델 다운로드
   -> 내 문서 로드
   -> Bronze/Silver/Gold RAG 메모리 구축
-  -> MCP로 Codex/Claude Code 연결
-  -> 구축된 로컬 메모리 기반으로 질문
+  -> 터미널 chat 모드 또는 MCP로 질문
 ```
 
 ## 지원 환경
@@ -90,7 +89,21 @@ memory retrieve my-docs "현재 유효한 결정은 무엇인가요?"
 memory query my-docs "왜 LightRAG 구조를 선택했나요?"
 ```
 
-Codex 또는 Claude Code에 연결할 MCP 설정을 출력합니다.
+매번 명령어를 치기 싫다면 대화형 모드로 들어갑니다.
+
+```bash
+memory chat my-docs
+```
+
+이후에는 프롬프트 안에서 질문만 입력하면 됩니다.
+
+```text
+ame> 현재 유효한 결정은 무엇인가요?
+ame> 왜 LightRAG 구조를 선택했나요?
+ame> /exit
+```
+
+Codex 또는 Claude Code 안에서 명령어 없이 쓰고 싶다면 MCP 설정을 출력합니다.
 
 ```bash
 memory connect my-docs --client codex
@@ -115,6 +128,7 @@ memory load my-docs ./path/to/docs --mode deterministic
 ## MCP 연결
 
 AME는 문서 메모리를 만든 뒤, MCP stdio 서버로 Codex나 Claude Code에 연결할 수 있습니다.
+MCP로 연결하면 터미널에서 `memory query ...`를 매번 입력하지 않고, Codex나 Claude Code 안에서 평소처럼 질문하면 됩니다.
 
 ```bash
 memory mcp stdio my-docs
@@ -173,6 +187,7 @@ memory doctor
 memory setup
 memory setup --execute
 memory load my-docs ./path/to/docs
+memory chat my-docs
 memory stats my-docs
 memory inspect my-docs
 memory retrieve my-docs "질문"

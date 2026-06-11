@@ -240,6 +240,45 @@ def query(corpus_id: str, question: str, mode: str = "hybrid") -> None:
 
 
 @app.command()
+def chat(
+    corpus_id: str,
+    mode: str = typer.Option("hybrid", "--mode", help="LightRAG query mode."),
+    sources: bool = typer.Option(True, "--sources/--no-sources", help="Show sources after each answer."),
+) -> None:
+    root = require_corpus(corpus_id)
+    typer.echo(f"AME chat: {corpus_id}")
+    typer.echo("Type /exit to quit, /help for commands.")
+    while True:
+        try:
+            question = input("ame> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            typer.echo("")
+            typer.echo("bye")
+            return
+        if not question:
+            continue
+        if question in {"/exit", "/quit", "exit", "quit", "q"}:
+            typer.echo("bye")
+            return
+        if question == "/help":
+            typer.echo("/exit  quit chat")
+            typer.echo("/help  show commands")
+            continue
+        try:
+            result = asyncio.run(LightRagAdapter(root).query(question, mode=mode))
+        except LightRagBackendError as exc:
+            typer.echo(f"LightRAG adapter failed: {exc}", err=True)
+            continue
+        typer.echo(result.answer)
+        if sources and result.sources:
+            typer.echo("")
+            typer.echo("Sources:")
+            for source in result.sources:
+                typer.echo(f"- {source.document} ({source.source_id})")
+        typer.echo("")
+
+
+@app.command()
 def retrieve(corpus_id: str, query: str, k: int = 8) -> None:
     root = require_corpus(corpus_id)
     result = AgentMemoryAPI(root).retrieve(query, k=k)

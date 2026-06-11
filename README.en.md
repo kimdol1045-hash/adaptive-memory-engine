@@ -55,8 +55,7 @@ Open Claude Code / Codex terminal
   -> download models
   -> load documents
   -> build Bronze/Silver/Gold RAG memory
-  -> connect via MCP
-  -> ask Claude Code / Codex using the built memory pool
+  -> ask through terminal chat or MCP
 ```
 
 ```bash
@@ -79,7 +78,22 @@ and ingest in one step after model setup:
 memory setup --execute
 memory load my-docs ./path/to/markdown-docs
 memory retrieve my-docs "What decisions are current?"
+memory chat my-docs
 memory connect my-docs --client codex
+```
+
+Use chat mode if you do not want to type a full command for every question:
+
+```bash
+memory chat my-docs
+```
+
+Then ask inside the prompt:
+
+```text
+ame> What decisions are current?
+ame> Why did we choose LightRAG?
+ame> /exit
 ```
 
 ## Claude Code / Codex via MCP
@@ -93,6 +107,9 @@ memory setup --execute
 memory load my-docs ./path/to/markdown-docs
 memory mcp stdio my-docs
 ```
+
+Once connected through MCP, you can ask from Codex or Claude Code without
+typing `memory query ...` for each question.
 
 To print the client config snippet:
 

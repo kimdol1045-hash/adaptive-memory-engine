@@ -59,3 +59,22 @@ def test_cli_pipeline(tmp_path: Path, monkeypatch) -> None:
     assert lightrag_status.exit_code == 0
     assert "Initialized: True" in lightrag_status.output
     assert "relationships: 4" in lightrag_status.output
+
+
+def test_cli_chat_keeps_session_open_for_questions(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    notes = tmp_path / "notes"
+    notes.mkdir()
+    (notes / "openclaw.md").write_text(
+        "---\nproject: OpenClaw\n---\n# OpenClaw\nOpenClaw decided to use LightRAG.\n",
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    assert runner.invoke(app, ["load", "openclaw", str(notes), "--mode", "deterministic"]).exit_code == 0
+    chat = runner.invoke(app, ["chat", "openclaw"], input="LightRAG\n/exit\n")
+
+    assert chat.exit_code == 0
+    assert "AME chat: openclaw" in chat.output
+    assert "LightRAG" in chat.output
+    assert "bye" in chat.output
