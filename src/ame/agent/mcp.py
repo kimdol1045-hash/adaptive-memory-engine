@@ -323,7 +323,7 @@ class BootstrapMcpToolbox:
     def _connect(self, corpus_id: str, *, client: str) -> dict[str, Any]:
         require_corpus(corpus_id)
         server = {
-            "command": "memory",
+            "command": "ame",
             "args": ["mcp", "stdio", corpus_id],
             "env": {"AME_HOME": str(ame_home().expanduser().resolve())},
         }

@@ -213,7 +213,7 @@ def connect(
     if corpus_id is not None:
         require_corpus(corpus_id)
     server = {
-        "command": "memory",
+        "command": "ame",
         "args": args,
         "env": {"AME_HOME": str(home)},
     }

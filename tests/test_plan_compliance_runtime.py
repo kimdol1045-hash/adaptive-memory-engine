@@ -156,6 +156,7 @@ def test_connect_without_corpus_prints_bootstrap_mcp_config(tmp_path: Path, monk
     result = runner.invoke(app, ["connect", "--client", "codex"])
 
     assert result.exit_code == 0
+    assert '"command": "ame"' in result.output
     assert '"args": [' in result.output
     assert '"mcp"' in result.output
     assert '"stdio"' in result.output

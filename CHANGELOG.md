@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 - 2026-06-11
+
+- Added `ame` as the recommended CLI command to avoid collisions with older or unrelated `memory` commands.
+- Kept `memory` as a backwards-compatible alias.
+- Updated README examples to use `ame` first.
+
 ## 0.1.2 - 2026-06-11
 
 - Added corpus-free bootstrap MCP mode through `memory mcp stdio`.

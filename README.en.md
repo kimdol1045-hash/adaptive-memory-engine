@@ -1,30 +1,17 @@
 # Adaptive Memory Engine Core
 
-Adaptive Memory Engine Core is a local-first memory engine that turns local
-documents into Bronze/Silver/Gold memory and exposes that memory to MCP clients
-such as Codex and Claude Code.
+Adaptive Memory Engine Core turns local documents into Bronze/Silver/Gold memory
+and exposes that memory to Codex, Claude Code, or another MCP client.
 
 The preferred UX is agent-first: connect AME through MCP, then ask Codex or
 Claude Code to diagnose hardware, recommend models, build memory, and answer
 questions in natural language.
 
-## Platform Support
+Current status: alpha, distributed through TestPyPI. Current beta version: `0.1.3`.
 
-AME is designed to run on macOS and Windows through the same `memory` CLI.
+## 1. Install
 
-- macOS: primary development target, default runtime path is `~/Library/Application Support/ame`.
-- Windows: supported runtime path is `%LOCALAPPDATA%\AdaptiveMemoryEngine`.
-- Linux: supported for local filesystem usage through `$XDG_DATA_HOME/ame` or `~/.local/share/ame`.
-
-Ollama must be installed and available on `PATH` for `memory setup --execute` to download local models.
-
-## Install
-
-Current status: alpha release distributed through TestPyPI.
-Current beta version: `0.1.2`.
-
-The simplest install path uses a Python virtual environment and does not require
-`pipx`.
+No `pipx` required. Copy and run:
 
 ```bash
 python3 -m venv ~/.ame
@@ -33,262 +20,135 @@ source ~/.ame/bin/activate
 python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  adaptive-memory-engine==0.1.2
+  adaptive-memory-engine==0.1.3
 ```
 
 Check the install:
 
 ```bash
 hash -r
-which memory
-memory --help
+which ame
+ame --help
 ```
 
-`which memory` should point to `~/.ame/bin/memory` or the `bin/memory` inside
-your active virtual environment. If it points to an older global install,
-reactivate the environment and refresh the zsh command cache:
+`which ame` should point to something like `~/.ame/bin/ame`.
+
+## 2. Connect Codex Or Claude Code
+
+Print a Codex MCP config:
 
 ```bash
-source ~/.ame/bin/activate
-hash -r
-which memory
+ame connect --client codex
 ```
 
-If `memory setup` prints `No such command 'setup'`, an older CLI is being
-executed. You can verify the virtualenv command directly:
+Print a Claude Code MCP config:
 
 ```bash
-~/.ame/bin/memory --help
-~/.ame/bin/memory setup
+ame connect --client claude
 ```
 
-If you already use `pipx`, this also works:
+Add the printed JSON to the client MCP settings.
 
-```bash
-pipx install adaptive-memory-engine==0.1.2 \
-  --pip-args="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/"
-```
+This works even before a corpus exists. The bootstrap MCP server lets Codex or
+Claude Code diagnose hardware, plan model downloads, build memory, and query the
+built memory.
 
-If you see `pipx: command not found`, install `pipx` first:
-
-```bash
-python3 -m pip install --user pipx
-python3 -m pipx ensurepath
-```
-
-Then open a new terminal and run the `pipx install ...` command again.
-
-From source:
-
-```bash
-git clone https://github.com/kimdol1045-hash/adaptive-memory-engine.git
-cd adaptive-memory-engine
-python3 -m pip install -e ".[dev]"
-```
-
-## Agent-First Quick Start
-
-The recommended flow is to connect AME to Codex or Claude Code first, then ask
-the agent to run setup in natural language. After installation, the main command
-you run manually is the MCP config command.
-
-Print a bootstrap MCP config:
-
-```bash
-memory connect --client codex
-```
-
-Or for Claude Code:
-
-```bash
-memory connect --client claude
-```
-
-Add the printed MCP config to the client. This bootstrap server works before a
-corpus exists and exposes setup tools:
-
-- `ame_doctor`: diagnose hardware, AME runtime, and recommended local models
-- `ame_setup`: plan or execute recommended model downloads
-- `ame_load`: build Bronze/Silver/Gold memory from a document folder
-- `ame_corpora`: list locally built corpora
-- `memory_search`, `memory_query`: answer questions from a built corpus
+## 3. Ask In Natural Language
 
 Then ask Codex or Claude Code:
 
 ```text
 Diagnose my computer for AME and recommend local models.
 If downloads are needed, show me the model plan first.
-After I approve, install the models and build memory from this document folder.
+After I approve, install the models.
+Then build memory named my-docs from /Users/me/Documents/planning.
 Once memory is built, answer questions from that local memory.
 ```
 
-When passing documents, give the local folder path:
+After that, ask normally:
 
 ```text
-Build memory named my-docs from this folder: /Users/me/Documents/planning
+What decisions are currently valid?
+Why did we choose this architecture?
+Which past decisions are now superseded?
 ```
 
-Model downloads can take time and disk space. Agents should call `ame_setup`
-with `execute=false` first, ask for approval, then call it with `execute=true`.
+## MCP Tools
 
-## Manual CLI Setup
+AME exposes these tools to Codex or Claude Code:
+
+- `ame_doctor`: diagnose hardware and local model status
+- `ame_setup`: plan or execute recommended model downloads
+- `ame_load`: build Bronze/Silver/Gold memory from a folder
+- `ame_corpora`: list built corpora
+- `memory_search`, `memory_query`: answer from built memory
+- `memory_graph`, `memory_decisions`, `memory_timeline`, `memory_why`: structured memory lookup
+
+Model downloads can take time and disk space. The agent should show the plan
+first, then run downloads after user approval.
+
+## Manual CLI Use
+
+You can also use AME directly:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python3 -m pip install -e ".[dev]"
-export AME_HOME="$PWD/.ame"
+ame doctor
+ame setup
+ame setup --execute
+ame load my-docs ./path/to/markdown-docs
+ame chat my-docs
 ```
 
-## Basic CLI Flow
-
-Target user flow:
+Inside chat mode:
 
 ```text
-Open Claude Code / Codex terminal
-  -> install AME
-  -> diagnose hardware
-  -> recommend local LLMs
-  -> download models
-  -> load documents
-  -> build Bronze/Silver/Gold RAG memory
-  -> ask through terminal chat or MCP
-```
-
-```bash
-memory init
-memory doctor
-memory setup
-memory setup --execute
-memory create openclaw
-memory ingest openclaw ./examples/notes --mode llm
-memory stats openclaw
-memory inspect openclaw
-memory query openclaw "OpenClaw LightRAG"
-memory export obsidian openclaw ./exports/openclaw-vault
-```
-
-If you want the shortest local-first flow, use `load` to initialize, create,
-and ingest in one step after model setup:
-
-```bash
-memory setup --execute
-memory load my-docs ./path/to/markdown-docs
-memory retrieve my-docs "What decisions are current?"
-memory chat my-docs
-memory connect my-docs --client codex
-```
-
-Use chat mode if you do not want to type a full command for every question:
-
-```bash
-memory chat my-docs
-```
-
-Then ask inside the prompt:
-
-```text
-ame> What decisions are current?
+ame> What decisions are currently valid?
 ame> Why did we choose LightRAG?
 ame> /exit
 ```
 
-## Claude Code / Codex via MCP
+## Troubleshooting
 
-AME supports two MCP modes.
-
-Use bootstrap MCP when no corpus exists yet and you want Codex or Claude Code to
-handle diagnosis, setup, and memory build:
+If `ame` is not found, reactivate the virtual environment:
 
 ```bash
-memory mcp stdio
+source ~/.ame/bin/activate
+hash -r
+which ame
+ame --help
 ```
 
-Use corpus-bound MCP when a corpus already exists and the client should only
-query that corpus:
+New versions use `ame` as the recommended command because the older `memory`
+command can collide with previous installs. `memory` remains as a compatibility
+alias, but prefer `ame`.
+
+## MCP Modes
+
+Bootstrap MCP:
 
 ```bash
-memory mcp stdio my-docs
+ame mcp stdio
 ```
 
-Once connected through MCP, you can ask from Codex or Claude Code without
-typing `memory query ...` for each question.
-
-To print a bootstrap client config:
+Corpus-bound MCP:
 
 ```bash
-memory connect --client codex
-memory connect --client claude
+ame mcp stdio my-docs
 ```
 
-To print a corpus-bound client config:
+Most users do not need to run these manually. Use `ame connect --client codex`
+or `ame connect --client claude` and paste the printed config into the client.
+
+## Bronze/Silver/Gold
+
+- Bronze: preserves raw documents.
+- Silver: extracts entities, relations, decisions, rationales, and constraints.
+- Gold: builds graph, timeline, supersession, and validation views.
+
+Use deterministic mode only for tests or fallback:
 
 ```bash
-memory connect my-docs --client codex
-memory connect my-docs --client claude
-```
-
-The underlying MCP server command shape is:
-
-```json
-{
-  "command": "memory",
-  "args": ["mcp", "stdio"],
-  "env": {
-    "AME_HOME": "/absolute/path/to/.ame"
-  }
-}
-```
-
-Bootstrap MCP tools include `ame_doctor`, `ame_setup`, `ame_load`,
-`ame_connect`, `ame_corpora`, `memory_search`, `memory_retrieve`,
-`memory_graph`, `memory_decisions`, `memory_timeline`, `memory_why`,
-`memory_diff`, `memory_write_decision`, and `memory_write_note`.
-
-The default AME product flow is local-LLM first: hardware profiling selects
-recommended local models, `memory setup --execute` pulls them through Ollama,
-and `memory load` builds Bronze/Silver/Gold memory with LLM-assisted Silver
-extraction.
-
-MCP transport itself is only the connection layer. It does not replace the
-local memory build; it exposes the built local memory to Claude Code, Codex, or
-another MCP client.
-
-Layer responsibility:
-
-- Bronze: raw document preservation, no LLM required.
-- Silver: structured entity/relation/decision extraction, local LLM by default.
-- Gold: graph, timeline, ontology, supersession, and validation built from Silver.
-
-Use `memory load --mode deterministic` only for a lightweight fallback or tests.
-
-See `docs/product_user_flow.md` for the intended end-to-end CLI product flow.
-See `docs/release_distribution_plan.md` for the external release plan.
-
-## LLM Extraction
-
-LLM extraction mode uses Ollama by default:
-
-```bash
-AME_OLLAMA_MODEL=qwen3:8b memory ingest openclaw ./examples/notes --mode llm
-```
-
-Optional LightRAG Core support:
-
-```bash
-pip install -e ".[lightrag]"
-```
-
-Then set `$AME_HOME/config.toml`:
-
-```toml
-[lightrag]
-backend = "core"
-query_mode = "hybrid"
-llm_model = "qwen3:8b"
-embedding_model = "nomic-embed-text"
-embedding_dim = 768
-max_token_size = 8192
+ame load my-docs ./path/to/docs --mode deterministic
 ```
 
 ## SDK
@@ -302,10 +162,4 @@ from memory import Corpus
 
 ```bash
 pytest
-```
-
-Use a small smoke test when you only want to verify the terminal package:
-
-```bash
-pytest tests/test_pipeline.py tests/test_query_engine.py
 ```
