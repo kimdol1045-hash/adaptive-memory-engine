@@ -17,6 +17,8 @@ Ollama must be installed and available on `PATH` for `memory setup --execute` to
 
 ## Install
 
+Current status: alpha release distributed through TestPyPI.
+
 Beta package from TestPyPI:
 
 ```bash
@@ -27,7 +29,7 @@ pipx install adaptive-memory-engine \
 From source:
 
 ```bash
-git clone https://github.com/<owner>/adaptive-memory-engine.git
+git clone https://github.com/kimdol1045-hash/adaptive-memory-engine.git
 cd adaptive-memory-engine
 python3 -m pip install -e ".[dev]"
 ```
