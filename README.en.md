@@ -18,13 +18,42 @@ Ollama must be installed and available on `PATH` for `memory setup --execute` to
 ## Install
 
 Current status: alpha release distributed through TestPyPI.
+Current beta version: `0.1.1`.
 
-Beta package from TestPyPI:
+The simplest install path uses a Python virtual environment and does not require
+`pipx`.
 
 ```bash
-pipx install adaptive-memory-engine \
+python3 -m venv ~/.ame
+source ~/.ame/bin/activate
+
+python -m pip install \
+  --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ \
+  adaptive-memory-engine==0.1.1
+```
+
+Check the install:
+
+```bash
+memory --help
+```
+
+If you already use `pipx`, this also works:
+
+```bash
+pipx install adaptive-memory-engine==0.1.1 \
   --pip-args="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/"
 ```
+
+If you see `pipx: command not found`, install `pipx` first:
+
+```bash
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+```
+
+Then open a new terminal and run the `pipx install ...` command again.
 
 From source:
 

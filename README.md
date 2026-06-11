@@ -35,14 +35,43 @@ AME는 같은 `memory` CLI로 macOS, Windows, Linux에서 동작하도록 설계
 
 ## 설치
 
-베타 패키지는 TestPyPI에서 설치할 수 있습니다.
+현재 베타 버전은 `0.1.1`입니다.
+
+가장 쉬운 방법은 Python 가상환경에 설치하는 것입니다. `pipx`가 없어도 됩니다.
 
 ```bash
-pipx install adaptive-memory-engine \
+python3 -m venv ~/.ame
+source ~/.ame/bin/activate
+
+python -m pip install \
+  --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ \
+  adaptive-memory-engine==0.1.1
+```
+
+설치가 끝나면 다음 명령어로 확인합니다.
+
+```bash
+memory --help
+```
+
+`pipx`를 이미 쓰고 있다면 다음 방식도 가능합니다.
+
+```bash
+pipx install adaptive-memory-engine==0.1.1 \
   --pip-args="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/"
 ```
 
-소스에서 직접 설치하려면 다음 명령어를 사용합니다.
+`pipx: command not found`가 나오면 먼저 `pipx`를 설치해야 합니다.
+
+```bash
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+```
+
+그 다음 터미널을 새로 열고 `pipx install ...` 명령어를 다시 실행합니다.
+
+개발자가 소스에서 직접 설치하려면 다음 명령어를 사용합니다.
 
 ```bash
 git clone https://github.com/kimdol1045-hash/adaptive-memory-engine.git
