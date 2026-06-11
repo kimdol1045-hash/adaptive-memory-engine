@@ -7,7 +7,7 @@ from typing import Literal
 
 import typer
 
-from ame.agent.mcp import LocalMcpToolbox, McpStdioServer
+from ame.agent.mcp import BootstrapMcpToolbox, LocalMcpToolbox, McpStdioServer
 from ame.agent.memory_api import AgentMemoryAPI
 from ame.connectors.router import ConnectorRouter
 from ame.connectors.google_oauth import (
@@ -204,15 +204,17 @@ def load(
 
 @app.command()
 def connect(
-    corpus_id: str,
+    corpus_id: str | None = typer.Argument(None),
     client: Literal["generic", "codex", "claude"] = "generic",
     ame_home_path: Path | None = typer.Option(None, "--ame-home", help="AME_HOME to put in the MCP client env."),
 ) -> None:
-    require_corpus(corpus_id)
     home = (ame_home_path or ame_home()).expanduser().resolve()
+    args = ["mcp", "stdio"] if corpus_id is None else ["mcp", "stdio", corpus_id]
+    if corpus_id is not None:
+        require_corpus(corpus_id)
     server = {
         "command": "memory",
-        "args": ["mcp", "stdio", corpus_id],
+        "args": args,
         "env": {"AME_HOME": str(home)},
     }
     name = "adaptive-memory-engine"
@@ -706,6 +708,11 @@ def mcp_manifest(corpus_id: str) -> None:
     typer.echo(json.dumps(LocalMcpToolbox.manifest(root.name), ensure_ascii=False, indent=2))
 
 
+@mcp_app.command("bootstrap-manifest")
+def mcp_bootstrap_manifest() -> None:
+    typer.echo(json.dumps(BootstrapMcpToolbox.manifest(), ensure_ascii=False, indent=2))
+
+
 @mcp_app.command("call")
 def mcp_call(corpus_id: str, tool_name: str, arguments_json: str = typer.Argument("{}")) -> None:
     root = require_corpus(corpus_id)
@@ -719,8 +726,8 @@ def mcp_call(corpus_id: str, tool_name: str, arguments_json: str = typer.Argumen
 
 
 @mcp_app.command("stdio")
-def mcp_stdio(corpus_id: str) -> None:
-    root = require_corpus(corpus_id)
+def mcp_stdio(corpus_id: str | None = typer.Argument(None)) -> None:
+    root = require_corpus(corpus_id) if corpus_id is not None else None
     McpStdioServer(root).run()
 
 

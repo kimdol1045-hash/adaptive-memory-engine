@@ -35,7 +35,7 @@ AME는 같은 `memory` CLI로 macOS, Windows, Linux에서 동작하도록 설계
 
 ## 설치
 
-현재 베타 버전은 `0.1.1`입니다.
+현재 베타 버전은 `0.1.2`입니다.
 
 가장 쉬운 방법은 Python 가상환경에 설치하는 것입니다. `pipx`가 없어도 됩니다.
 
@@ -46,7 +46,7 @@ source ~/.ame/bin/activate
 python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  adaptive-memory-engine==0.1.1
+  adaptive-memory-engine==0.1.2
 ```
 
 설치가 끝나면 다음 명령어로 확인합니다.
@@ -77,7 +77,7 @@ which memory
 `pipx`를 이미 쓰고 있다면 다음 방식도 가능합니다.
 
 ```bash
-pipx install adaptive-memory-engine==0.1.1 \
+pipx install adaptive-memory-engine==0.1.2 \
   --pip-args="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/"
 ```
 
@@ -104,7 +104,41 @@ python3 -m pip install -e ".[dev]"
 export AME_HOME="$PWD/.ame"
 ```
 
-## 빠른 시작
+## 빠른 시작: Codex/Claude Code에서 자연어로 쓰기
+
+권장 흐름은 사용자가 모든 명령어를 직접 치는 방식이 아니라, Codex나 Claude Code에 AME MCP를 연결한 뒤 자연어로 맡기는 방식입니다.
+
+먼저 AME bootstrap MCP 설정을 출력합니다.
+
+```bash
+memory connect --client codex
+```
+
+또는 Claude Code용 설정을 출력합니다.
+
+```bash
+memory connect --client claude
+```
+
+출력된 MCP 설정을 클라이언트에 추가하면, 아직 corpus가 없어도 Codex/Claude Code가 다음 작업을 도구로 수행할 수 있습니다.
+
+- `ame_doctor`: 컴퓨터 사양, AME 런타임, 추천 로컬 모델 진단
+- `ame_setup`: 추천 모델 다운로드 계획 또는 실행
+- `ame_load`: 문서 폴더를 Bronze/Silver/Gold 메모리로 구축
+- `memory_search`, `memory_query`: 구축된 메모리 기반 질문
+
+그 다음 Codex나 Claude Code에 이렇게 말하면 됩니다.
+
+```text
+내 컴퓨터 사양을 진단하고 AME에 맞는 로컬 모델을 추천해줘.
+모델 다운로드가 필요하면 먼저 어떤 모델을 받을지 알려줘.
+승인하면 모델을 설치하고, 내가 지정한 문서 폴더로 메모리를 구축해줘.
+구축이 끝나면 그 메모리를 기준으로 질문에 답해줘.
+```
+
+모델 다운로드는 디스크와 시간이 필요하므로, 에이전트가 `ame_setup`을 실행할 때는 먼저 계획을 보여주고 사용자 승인을 받은 뒤 `execute=true`로 진행하는 것이 좋습니다.
+
+## CLI로 직접 쓰기
 
 먼저 현재 컴퓨터 사양과 로컬 LLM 상태를 확인합니다.
 

@@ -8,6 +8,17 @@ from typing import Any, TextIO
 from pydantic import BaseModel, Field
 
 from ame.agent.memory_api import AgentMemoryAPI
+from ame.core.config import load_config
+from ame.core.corpus import create_corpus, require_corpus
+from ame.core.paths import ame_home, ensure_runtime_layout
+from ame.hardware.profiler import HardwareProfiler
+from ame.models.download import OllamaModelInstaller
+from ame.models.registry import load_default_registry
+from ame.models.router import ModelRouter
+from ame.pipeline import MemoryPipeline
+
+
+SERVER_VERSION = "0.1.2"
 
 
 class McpToolSpec(BaseModel):
@@ -87,6 +98,56 @@ READ_TOOLS = [
 ]
 
 
+BOOTSTRAP_TOOLS = [
+    McpToolSpec(
+        name="ame_doctor",
+        description="Diagnose local AME runtime, hardware tier, and recommended local models.",
+        input_schema={"type": "object", "properties": {}},
+    ),
+    McpToolSpec(
+        name="ame_setup",
+        description="Plan or execute local model installation through Ollama. Use execute=false before asking the user for approval.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "execute": {"type": "boolean", "description": "Pull missing models when true. Defaults to false."},
+            },
+        },
+    ),
+    McpToolSpec(
+        name="ame_load",
+        description="Build Bronze/Silver/Gold memory from a local document folder.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "corpus_id": {"type": "string"},
+                "source_path": {"type": "string"},
+                "mode": {"type": "string", "enum": ["llm", "deterministic"]},
+                "profile": {"type": "string"},
+            },
+            "required": ["corpus_id", "source_path"],
+        },
+    ),
+    McpToolSpec(
+        name="ame_connect",
+        description="Return MCP client configuration for a built corpus.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "corpus_id": {"type": "string"},
+                "client": {"type": "string", "enum": ["generic", "codex", "claude"]},
+            },
+            "required": ["corpus_id"],
+        },
+    ),
+    McpToolSpec(
+        name="ame_corpora",
+        description="List local AME corpora.",
+        input_schema={"type": "object", "properties": {}},
+    ),
+]
+
+
 class LocalMcpToolbox:
     def __init__(self, corpus_root: Path):
         self.api = AgentMemoryAPI(corpus_root)
@@ -149,10 +210,143 @@ class LocalMcpToolbox:
         return {"value": value}
 
 
-class McpStdioServer:
-    def __init__(self, corpus_root: Path):
+class BootstrapMcpToolbox:
+    def __init__(self, corpus_root: Path | None = None):
         self.corpus_root = corpus_root
-        self.toolbox = LocalMcpToolbox(corpus_root)
+
+    @staticmethod
+    def manifest(corpus_id: str | None = None) -> dict[str, Any]:
+        tools = _tools_for_mode(corpus_bound=corpus_id is not None)
+        return {
+            "name": "adaptive-memory-engine",
+            "transport": "local-stdio-compatible",
+            "corpus_id": corpus_id,
+            "tools": [tool.model_dump() for tool in tools],
+        }
+
+    def call(self, tool_name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+        arguments = arguments or {}
+        if tool_name == "ame_doctor":
+            return self._doctor()
+        if tool_name == "ame_setup":
+            return self._setup(execute=bool(arguments.get("execute", False)))
+        if tool_name == "ame_load":
+            corpus_id = str(arguments.get("corpus_id") or "").strip()
+            source_path = str(arguments.get("source_path") or "").strip()
+            if not corpus_id:
+                raise ValueError("ame_load requires corpus_id")
+            if not source_path:
+                raise ValueError("ame_load requires source_path")
+            mode = str(arguments.get("mode") or "llm")
+            if mode not in {"llm", "deterministic"}:
+                raise ValueError("ame_load mode must be llm or deterministic")
+            profile = arguments.get("profile")
+            return self._load(corpus_id, Path(source_path).expanduser(), mode=mode, profile=str(profile) if profile else None)
+        if tool_name == "ame_connect":
+            corpus_id = str(arguments.get("corpus_id") or "").strip()
+            if not corpus_id:
+                raise ValueError("ame_connect requires corpus_id")
+            return self._connect(corpus_id, client=str(arguments.get("client") or "generic"))
+        if tool_name == "ame_corpora":
+            return self._corpora()
+        if self.corpus_root is not None:
+            return LocalMcpToolbox(self.corpus_root).call(tool_name, arguments)
+
+        corpus_id = str(arguments.get("corpus_id") or "").strip()
+        if not corpus_id:
+            raise ValueError(f"{tool_name} requires corpus_id when AME MCP is running in bootstrap mode")
+        local_arguments = {key: value for key, value in arguments.items() if key != "corpus_id"}
+        return LocalMcpToolbox(require_corpus(corpus_id)).call(tool_name, local_arguments)
+
+    def _doctor(self) -> dict[str, Any]:
+        home = ensure_runtime_layout()
+        config = load_config()
+        profile = HardwareProfiler().profile(home)
+        plan = ModelRouter(load_default_registry()).plan(profile)
+        install_plan = OllamaModelInstaller(host=config.lightrag.ollama_host, allow_cli_list=True).install_plan(plan, profile)
+        return {
+            "ame_home": str(home),
+            "runtime": "local filesystem",
+            "hardware": profile.model_dump(mode="json"),
+            "model_plan": plan.model_dump(mode="json"),
+            "install_plan": install_plan.model_dump(mode="json"),
+            "next_steps": [
+                "Ask the user before running ame_setup with execute=true because it downloads local models.",
+                "After models are ready, call ame_load with corpus_id and source_path.",
+                "After memory is built, answer questions with memory_search or memory_query using that corpus_id.",
+            ],
+        }
+
+    def _setup(self, *, execute: bool) -> dict[str, Any]:
+        home = ensure_runtime_layout()
+        config = load_config()
+        profile = HardwareProfiler().profile(home)
+        plan = ModelRouter(load_default_registry()).plan(profile)
+        installer = OllamaModelInstaller(host=config.lightrag.ollama_host, allow_cli_list=True)
+        install_plan = installer.install_plan(plan, profile)
+        payload: dict[str, Any] = {
+            "ame_home": str(home),
+            "execute": execute,
+            "install_plan": install_plan.model_dump(mode="json"),
+        }
+        if not profile.ollama_installed:
+            payload["status"] = "blocked"
+            payload["message"] = "Ollama is not installed. Install Ollama first, then run setup again."
+            return payload
+        if not install_plan.missing_models:
+            payload["status"] = "ready"
+            payload["message"] = "Recommended local models are already installed."
+            return payload
+        if not execute:
+            payload["status"] = "planned"
+            payload["message"] = "Ask the user for approval before running ame_setup with execute=true."
+            return payload
+        results = installer.pull(install_plan.missing_models, execute=True, installed=install_plan.installed_models)
+        payload["status"] = "executed"
+        payload["results"] = [result.model_dump(mode="json") for result in results]
+        return payload
+
+    def _load(self, corpus_id: str, source_path: Path, *, mode: str, profile: str | None) -> dict[str, Any]:
+        ensure_runtime_layout()
+        create_corpus(corpus_id)
+        report = MemoryPipeline().ingest(corpus_id, source_path, mode=mode, profile=profile)
+        return {
+            "corpus_id": corpus_id,
+            "source_path": str(source_path),
+            "report": report.model_dump(mode="json"),
+            "next_steps": [
+                f"Use memory_search with corpus_id={corpus_id!r} to answer grounded questions.",
+                f"Use ame_connect with corpus_id={corpus_id!r} if the user wants a corpus-bound MCP config.",
+            ],
+        }
+
+    def _connect(self, corpus_id: str, *, client: str) -> dict[str, Any]:
+        require_corpus(corpus_id)
+        server = {
+            "command": "memory",
+            "args": ["mcp", "stdio", corpus_id],
+            "env": {"AME_HOME": str(ame_home().expanduser().resolve())},
+        }
+        if client == "generic":
+            return server
+        if client not in {"codex", "claude"}:
+            raise ValueError("client must be generic, codex, or claude")
+        return {"mcpServers": {"adaptive-memory-engine": server}}
+
+    def _corpora(self) -> dict[str, Any]:
+        home = ensure_runtime_layout()
+        corpora_root = home / "corpora"
+        corpora = []
+        for child in sorted(corpora_root.iterdir()):
+            if child.is_dir():
+                corpora.append({"corpus_id": child.name, "path": str(child)})
+        return {"ame_home": str(home), "corpora": corpora}
+
+
+class McpStdioServer:
+    def __init__(self, corpus_root: Path | None = None):
+        self.corpus_root = corpus_root
+        self.toolbox = BootstrapMcpToolbox(corpus_root)
         self.should_stop = False
 
     def run(self, stdin: TextIO | None = None, stdout: TextIO | None = None) -> None:
@@ -210,12 +404,12 @@ class McpStdioServer:
             return {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "adaptive-memory-engine", "version": "0.1.0"},
+                "serverInfo": {"name": "adaptive-memory-engine", "version": SERVER_VERSION},
             }
         if method == "ping":
             return {}
         if method == "tools/list":
-            return {"tools": [self._tool_for_mcp(tool) for tool in READ_TOOLS]}
+            return {"tools": [self._tool_for_mcp(tool) for tool in _tools_for_mode(corpus_bound=self.corpus_root is not None)]}
         if method == "tools/call":
             return self._call_tool(params)
         if method == "resources/list":
@@ -253,3 +447,19 @@ class McpStdioServer:
 
     def _error(self, request_id: Any, code: int, message: str) -> dict[str, Any]:
         return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
+
+
+def _tools_for_mode(*, corpus_bound: bool) -> list[McpToolSpec]:
+    if corpus_bound:
+        return READ_TOOLS
+    return BOOTSTRAP_TOOLS + [_with_corpus_argument(tool) for tool in READ_TOOLS]
+
+
+def _with_corpus_argument(tool: McpToolSpec) -> McpToolSpec:
+    schema = json.loads(json.dumps(tool.input_schema))
+    properties = schema.setdefault("properties", {})
+    properties["corpus_id"] = {"type": "string", "description": "AME corpus id to query."}
+    required = schema.setdefault("required", [])
+    if "corpus_id" not in required:
+        required.append("corpus_id")
+    return McpToolSpec(name=tool.name, description=tool.description, input_schema=schema)

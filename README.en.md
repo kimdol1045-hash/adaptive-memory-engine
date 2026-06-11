@@ -18,7 +18,7 @@ Ollama must be installed and available on `PATH` for `memory setup --execute` to
 ## Install
 
 Current status: alpha release distributed through TestPyPI.
-Current beta version: `0.1.1`.
+Current beta version: `0.1.2`.
 
 The simplest install path uses a Python virtual environment and does not require
 `pipx`.
@@ -30,7 +30,7 @@ source ~/.ame/bin/activate
 python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  adaptive-memory-engine==0.1.1
+  adaptive-memory-engine==0.1.2
 ```
 
 Check the install:
@@ -62,7 +62,7 @@ executed. You can verify the virtualenv command directly:
 If you already use `pipx`, this also works:
 
 ```bash
-pipx install adaptive-memory-engine==0.1.1 \
+pipx install adaptive-memory-engine==0.1.2 \
   --pip-args="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/"
 ```
 
@@ -83,7 +83,44 @@ cd adaptive-memory-engine
 python3 -m pip install -e ".[dev]"
 ```
 
-## Setup
+## Agent-First Quick Start
+
+The recommended flow is to connect AME to Codex or Claude Code first, then ask
+the agent to run setup in natural language.
+
+Print a bootstrap MCP config:
+
+```bash
+memory connect --client codex
+```
+
+Or for Claude Code:
+
+```bash
+memory connect --client claude
+```
+
+Add the printed MCP config to the client. This bootstrap server works before a
+corpus exists and exposes setup tools:
+
+- `ame_doctor`: diagnose hardware, AME runtime, and recommended local models
+- `ame_setup`: plan or execute recommended model downloads
+- `ame_load`: build Bronze/Silver/Gold memory from a document folder
+- `memory_search`, `memory_query`: answer questions from a built corpus
+
+Then ask Codex or Claude Code:
+
+```text
+Diagnose my computer for AME and recommend local models.
+If downloads are needed, show me the model plan first.
+After I approve, install the models and build memory from this document folder.
+Once memory is built, answer questions from that local memory.
+```
+
+Model downloads can take time and disk space. Agents should call `ame_setup`
+with `execute=false` first, ask for approval, then call it with `execute=true`.
+
+## Manual CLI Setup
 
 ```bash
 python3 -m venv .venv

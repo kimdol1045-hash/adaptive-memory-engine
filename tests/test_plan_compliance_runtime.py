@@ -107,3 +107,55 @@ def test_mcp_stdio_server_lists_and_calls_tools(tmp_path: Path, monkeypatch) -> 
     assert tools and any(tool["name"] == "memory_search" for tool in tools["result"]["tools"])
     assert call and call["result"]["isError"] is False
     assert "LightRAG" in call["result"]["content"][0]["text"]
+
+
+def test_bootstrap_mcp_can_load_and_query_without_bound_corpus(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    notes = tmp_path / "notes"
+    notes.mkdir()
+    (notes / "openclaw.md").write_text(
+        "---\nproject: OpenClaw\n---\n# OpenClaw\nOpenClaw decided to use LightRAG.\n",
+        encoding="utf-8",
+    )
+
+    server = McpStdioServer()
+    tools = server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}})
+    load = server.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {
+                "name": "ame_load",
+                "arguments": {"corpus_id": "bootstrap", "source_path": str(notes), "mode": "deterministic"},
+            },
+        }
+    )
+    search = server.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "memory_search", "arguments": {"corpus_id": "bootstrap", "query": "LightRAG"}},
+        }
+    )
+
+    tool_names = {tool["name"] for tool in tools["result"]["tools"]}  # type: ignore[index]
+    assert "ame_doctor" in tool_names
+    assert "ame_load" in tool_names
+    assert "memory_search" in tool_names
+    assert load and load["result"]["isError"] is False
+    assert search and search["result"]["isError"] is False
+    assert "LightRAG" in search["result"]["content"][0]["text"]
+
+
+def test_connect_without_corpus_prints_bootstrap_mcp_config(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["connect", "--client", "codex"])
+
+    assert result.exit_code == 0
+    assert '"args": [' in result.output
+    assert '"mcp"' in result.output
+    assert '"stdio"' in result.output

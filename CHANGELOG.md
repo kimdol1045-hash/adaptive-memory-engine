@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2 - 2026-06-11
+
+- Added corpus-free bootstrap MCP mode through `memory mcp stdio`.
+- Added MCP tools for agent-led setup: `ame_doctor`, `ame_setup`, `ame_load`, `ame_connect`, and `ame_corpora`.
+- Updated `memory connect` so Codex/Claude Code can connect before any corpus exists.
+- Added tests for agent bootstrap load and query flow.
+
 ## 0.1.1 - 2026-06-11
 
 - Added `memory chat <corpus>` for interactive terminal questions without typing `memory query` each time.
