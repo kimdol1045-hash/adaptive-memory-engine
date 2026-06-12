@@ -7,7 +7,7 @@ The preferred UX is agent-first: connect AME through MCP, then ask Codex or
 Claude Code to diagnose hardware, recommend models, build memory, and answer
 questions in natural language.
 
-Current status: alpha, distributed through PyPI. Current version: `0.1.9`.
+Current status: alpha, distributed through PyPI. Current version: `0.1.10`.
 
 ## 1. Install
 
@@ -43,13 +43,21 @@ mcp stdio` process so AME can read local documents and use local LLMs.
 
 ## 2. Connect Codex Or Claude Code
 
-Print a Codex MCP config and paste it into Codex custom MCP settings:
+For Codex, one command registers AME MCP in `~/.codex/config.toml`:
 
 ```bash
 ame connect --client codex
 ```
 
-For Claude Code:
+Restart Codex after running it.
+
+To preview the Codex MCP config without writing it:
+
+```bash
+ame connect --client codex --print-only
+```
+
+For Claude Code, print the MCP JSON and paste it into the Claude Code settings:
 
 ```bash
 ame connect --client claude
@@ -235,10 +243,16 @@ If AME was already installed, upgrade explicitly:
 
 ```bash
 python -m pip install --upgrade adaptive-memory-engine
-python -m pip show adaptive-memory-engine
+ame --version
 ```
 
-The printed `Version` should match the current README version.
+The printed version should match the current README version.
+
+For package metadata, you can also run:
+
+```bash
+python -m pip show adaptive-memory-engine
+```
 
 If `ame` is not on PATH, reload your shell config:
 
@@ -248,13 +262,13 @@ ame --help
 ame connect --client codex
 ```
 
-If the MCP client still cannot find `ame`, include PATH in the generated JSON:
+If Codex still cannot find `ame`, include PATH in the Codex config:
 
 ```bash
 ame connect --client codex --include-path-env
 ```
 
-If that still fails, use the previous absolute command mode:
+If that still fails, write the absolute executable path into the Codex config:
 
 ```bash
 ame connect --client codex --absolute-command

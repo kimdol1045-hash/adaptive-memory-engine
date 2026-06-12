@@ -19,7 +19,7 @@ from ame.models.router import ModelRouter
 from ame.pipeline import MemoryPipeline
 
 
-SERVER_VERSION = "0.1.9"
+SERVER_VERSION = "0.1.10"
 
 MCP_INSTRUCTIONS = "\n".join(
     [

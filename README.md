@@ -7,7 +7,7 @@ Codex나 Claude Code가 그 메모리를 보고 답할 수 있게 해주는 loca
 
 사용자가 매번 긴 명령어를 치는 방식보다, **Codex/Claude Code에 AME를 연결하고 자연어로 맡기는 방식**을 우선합니다.
 
-현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.9`입니다.
+현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.10`입니다.
 
 ## 1. 설치
 
@@ -39,19 +39,27 @@ python -m pip install adaptive-memory-engine
 
 ## 2. Codex 또는 Claude Code에 연결
 
-Codex용 MCP 설정을 출력해서 Codex의 커스텀 MCP 설정에 붙입니다.
+Codex는 아래 명령 하나로 `~/.codex/config.toml`에 AME MCP가 등록됩니다.
 
 ```bash
 ame connect --client codex
 ```
 
-Claude Code를 쓴다면 다음 명령을 사용합니다.
+그 다음 Codex를 다시 시작하면 AME MCP 도구가 보입니다.
+
+설정 내용을 파일에 쓰지 않고 확인만 하고 싶다면 다음처럼 실행합니다.
+
+```bash
+ame connect --client codex --print-only
+```
+
+Claude Code를 쓴다면 다음 명령으로 MCP 설정 JSON을 출력한 뒤 Claude Code 설정에 붙입니다.
 
 ```bash
 ame connect --client claude
 ```
 
-출력된 JSON의 기본 `command`는 절대경로가 아니라 `ame`입니다.
+기본 `command`는 절대경로가 아니라 `ame`입니다.
 
 ```json
 {
@@ -62,7 +70,7 @@ ame connect --client claude
 
 기본 설정에는 실행 파일 절대경로를 넣지 않습니다. MCP 클라이언트가 실행될 때마다 가상환경을 직접 활성화할 필요도 없습니다.
 
-이때 아직 문서 메모리를 만들지 않았어도 괜찮습니다. `ame connect --client ...`는 bootstrap MCP 설정을 출력하므로, Codex/Claude Code가 사양 진단부터 메모리 구축까지 진행할 수 있습니다.
+이때 아직 문서 메모리를 만들지 않았어도 괜찮습니다. `ame connect --client ...`는 bootstrap MCP를 연결하므로, Codex/Claude Code가 사양 진단부터 메모리 구축까지 진행할 수 있습니다.
 
 ## 3. 자연어로 진행
 
@@ -225,10 +233,16 @@ MCP 설정을 한 번 추가한 뒤에는 Codex/Claude Code가 `ame` 명령을 �
 
 ```bash
 python -m pip install --upgrade adaptive-memory-engine
-python -m pip show adaptive-memory-engine
+ame --version
 ```
 
-출력의 `Version`이 현재 README의 버전과 같아야 합니다.
+출력 버전이 현재 README의 버전과 같아야 합니다.
+
+보조 확인이 필요하면 패키지 메타데이터를 확인할 수 있습니다.
+
+```bash
+python -m pip show adaptive-memory-engine
+```
 
 터미널에서 `ame` 명령이 안 보이면 PATH를 다시 적용합니다.
 
@@ -238,13 +252,13 @@ ame --help
 ame connect --client codex
 ```
 
-MCP 클라이언트가 `ame`를 찾지 못한다면 PATH를 JSON에 같이 넣을 수 있습니다.
+Codex가 `ame`를 찾지 못한다면 PATH를 Codex 설정에 같이 넣을 수 있습니다.
 
 ```bash
 ame connect --client codex --include-path-env
 ```
 
-그래도 안 되면 예전 방식처럼 실행 파일 절대경로를 넣을 수 있습니다.
+그래도 안 되면 실행 파일 절대경로를 Codex 설정에 넣을 수 있습니다.
 
 ```bash
 ame connect --client codex --absolute-command

@@ -10,6 +10,7 @@ from typing import Literal
 
 import typer
 
+from ame import __version__
 from ame.agent.mcp import BootstrapMcpToolbox, LocalMcpToolbox, McpStdioServer
 from ame.agent.memory_api import AgentMemoryAPI
 from ame.connectors.router import ConnectorRouter
@@ -69,6 +70,25 @@ app.add_typer(slack_app, name="slack")
 app.add_typer(google_app, name="google")
 app.add_typer(models_app, name="models")
 app.add_typer(connectors_app, name="connectors")
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(__version__)
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show the AME version and exit.",
+    ),
+) -> None:
+    pass
 
 
 @app.command()
@@ -212,6 +232,7 @@ def connect(
     ame_home_path: Path | None = typer.Option(None, "--ame-home", help="AME_HOME to put in the MCP client env."),
     include_path_env: bool = typer.Option(False, "--include-path-env", help="Add ame's install directory to PATH in the MCP config env."),
     absolute_command: bool = typer.Option(False, "--absolute-command", help="Use the absolute ame executable path in the MCP config."),
+    print_only: bool = typer.Option(False, "--print-only", help="Print the MCP config without writing a client config file."),
 ) -> None:
     args = ["mcp", "stdio"] if corpus_id is None else ["mcp", "stdio", corpus_id]
     if corpus_id is not None:
@@ -232,11 +253,20 @@ def connect(
     if env:
         server["env"] = env
     name = "adaptive-memory-engine"
-    if client == "generic":
+    if client == "codex":
+        payload = _codex_mcp_toml(name, server)
+        if print_only:
+            typer.echo(payload)
+            return
+        config_path = _write_codex_mcp_config(name, server)
+        typer.echo(f"Codex MCP config updated: {config_path}")
+        typer.echo("Restart Codex, then ask it to use AME MCP.")
+    elif client == "generic":
         payload = server
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         payload = {"mcpServers": {name: server}}
-    typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 @app.command()
@@ -878,6 +908,61 @@ def _ame_bin_dir() -> Path | None:
     if found:
         return Path(found).expanduser().resolve().parent
     return None
+
+
+def _codex_mcp_toml(name: str, server: dict[str, object]) -> str:
+    lines = [
+        f"[mcp_servers.{name}]",
+        f"command = {_toml_string(str(server['command']))}",
+        f"args = {_toml_array([str(arg) for arg in server['args']])}",
+    ]
+    env = server.get("env")
+    if isinstance(env, dict) and env:
+        lines.append("")
+        lines.append(f"[mcp_servers.{name}.env]")
+        for key, value in sorted(env.items()):
+            lines.append(f"{key} = {_toml_string(str(value))}")
+    return "\n".join(lines)
+
+
+def _write_codex_mcp_config(name: str, server: dict[str, object]) -> Path:
+    config_path = Path.home() / ".codex" / "config.toml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    existing = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+    body = _without_codex_mcp_section(existing, name)
+    block = _codex_mcp_toml(name, server)
+    updated = "\n\n".join(part for part in [body.strip(), block] if part).rstrip() + "\n"
+    if existing and existing != updated:
+        backup_path = config_path.with_suffix(".toml.ame.bak")
+        backup_path.write_text(existing, encoding="utf-8")
+    config_path.write_text(updated, encoding="utf-8")
+    return config_path
+
+
+def _without_codex_mcp_section(text: str, name: str) -> str:
+    targets = {f"mcp_servers.{name}", f"mcp_servers.{name}.env"}
+    kept: list[str] = []
+    skip = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped.strip("[]")
+            skip = section in targets
+            if skip:
+                continue
+        if not skip:
+            kept.append(line)
+    while kept and not kept[-1].strip():
+        kept.pop()
+    return "\n".join(kept)
+
+
+def _toml_array(values: list[str]) -> str:
+    return "[" + ", ".join(_toml_string(value) for value in values) + "]"
+
+
+def _toml_string(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
 
 
 def _profile_disk_path() -> Path:

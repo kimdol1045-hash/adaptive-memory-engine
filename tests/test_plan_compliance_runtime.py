@@ -5,6 +5,7 @@ import stat
 
 from typer.testing import CliRunner
 
+from ame import __version__
 from ame.agent.mcp import McpStdioServer
 from ame.cli.main import app
 from ame.core.corpus import require_corpus
@@ -23,6 +24,13 @@ def test_model_registry_yaml_matches_runtime_schema() -> None:
     assert t1.synthesize.model == "qwen3:8b"
     assert t1.embed.model == "nomic-embed-text"
     assert t1.embed.dim == 768
+
+
+def test_cli_version_option_reports_package_version() -> None:
+    result = CliRunner().invoke(app, ["--version"])
+
+    assert result.exit_code == 0
+    assert result.output.strip() == __version__
 
 
 def test_runtime_layout_writes_registry_ontology_and_state_db(tmp_path: Path, monkeypatch) -> None:
@@ -125,7 +133,7 @@ def test_mcp_stdio_accepts_content_length_framing() -> None:
     _headers, payload = raw.split("\r\n\r\n", 1)
     response = json.loads(payload)
     assert response["result"]["serverInfo"]["name"] == "adaptive-memory-engine"
-    assert response["result"]["serverInfo"]["version"] == "0.1.9"
+    assert response["result"]["serverInfo"]["version"] == "0.1.10"
     assert "Use AME MCP tools before shell commands" in response["result"]["instructions"]
 
 
@@ -202,22 +210,37 @@ def test_bootstrap_mcp_exposes_flow_response_templates(tmp_path: Path, monkeypat
     assert "모델 설치 계획입니다" in text
 
 
-def test_connect_without_corpus_prints_bootstrap_mcp_config(tmp_path: Path, monkeypatch) -> None:
+def test_connect_without_corpus_writes_codex_mcp_config(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.delenv("AME_HOME", raising=False)
     runner = CliRunner()
 
     result = runner.invoke(app, ["connect", "--client", "codex"])
 
     assert result.exit_code == 0
-    assert '"command": "ame"' in result.output
-    assert '"env"' not in result.output
-    assert '"PATH"' not in result.output
-    assert '"args": [' in result.output
-    assert '"mcp"' in result.output
-    assert '"stdio"' in result.output
+    assert "Codex MCP config updated:" in result.output
+    config_text = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
+    assert "[mcp_servers.adaptive-memory-engine]" in config_text
+    assert 'command = "ame"' in config_text
+    assert 'args = ["mcp", "stdio"]' in config_text
+    assert "PATH" not in config_text
+
+
+def test_connect_can_print_codex_mcp_config_without_writing(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("AME_HOME", raising=False)
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["connect", "--client", "codex", "--print-only"])
+
+    assert result.exit_code == 0
+    assert "[mcp_servers.adaptive-memory-engine]" in result.output
+    assert 'command = "ame"' in result.output
+    assert not (tmp_path / ".codex" / "config.toml").exists()
 
 
 def test_connect_can_include_path_env_when_requested(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
     monkeypatch.setattr("ame.cli.main._ame_path_env", lambda: "/tmp/ame/bin:/usr/bin")
     runner = CliRunner()
@@ -225,11 +248,14 @@ def test_connect_can_include_path_env_when_requested(tmp_path: Path, monkeypatch
     result = runner.invoke(app, ["connect", "--client", "codex", "--include-path-env"])
 
     assert result.exit_code == 0
-    assert '"command": "ame"' in result.output
-    assert '"PATH": "/tmp/ame/bin:/usr/bin"' in result.output
+    config_text = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
+    assert 'command = "ame"' in config_text
+    assert "[mcp_servers.adaptive-memory-engine.env]" in config_text
+    assert 'PATH = "/tmp/ame/bin:/usr/bin"' in config_text
 
 
 def test_connect_can_print_absolute_command_when_requested(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
     monkeypatch.setattr("ame.cli.main._ame_command", lambda: "/tmp/ame/bin/ame")
     runner = CliRunner()
@@ -237,4 +263,5 @@ def test_connect_can_print_absolute_command_when_requested(tmp_path: Path, monke
     result = runner.invoke(app, ["connect", "--client", "codex", "--absolute-command"])
 
     assert result.exit_code == 0
-    assert '"command": "/tmp/ame/bin/ame"' in result.output
+    config_text = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
+    assert 'command = "/tmp/ame/bin/ame"' in config_text

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.10 - 2026-06-12
+
+- Changed `ame connect --client codex` to write the Codex MCP config directly to `~/.codex/config.toml`.
+- Added `--print-only` for previewing the Codex MCP TOML without writing user config.
+- Added `ame --version` for simple installed-version checks.
+- Updated README guidance so Codex setup no longer tells users to paste Claude-style JSON.
+
 ## 0.1.9 - 2026-06-12
 
 - Updated the packaged README with cleaner AME MCP flow guidance and response templates.
