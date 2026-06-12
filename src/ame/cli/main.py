@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -209,16 +210,27 @@ def connect(
     corpus_id: str | None = typer.Argument(None),
     client: Literal["generic", "codex", "claude"] = "generic",
     ame_home_path: Path | None = typer.Option(None, "--ame-home", help="AME_HOME to put in the MCP client env."),
+    include_path_env: bool = typer.Option(False, "--include-path-env", help="Add ame's install directory to PATH in the MCP config env."),
+    absolute_command: bool = typer.Option(False, "--absolute-command", help="Use the absolute ame executable path in the MCP config."),
 ) -> None:
-    home = (ame_home_path or ame_home()).expanduser().resolve()
     args = ["mcp", "stdio"] if corpus_id is None else ["mcp", "stdio", corpus_id]
     if corpus_id is not None:
         require_corpus(corpus_id)
+    env: dict[str, str] = {}
+    if ame_home_path is not None:
+        env["AME_HOME"] = str(ame_home_path.expanduser().resolve())
+    elif os.environ.get("AME_HOME"):
+        env["AME_HOME"] = str(ame_home().expanduser().resolve())
+    if include_path_env and not absolute_command:
+        path_env = _ame_path_env()
+        if path_env:
+            env["PATH"] = path_env
     server = {
-        "command": _ame_command(),
+        "command": _ame_command() if absolute_command else "ame",
         "args": args,
-        "env": {"AME_HOME": str(home)},
     }
+    if env:
+        server["env"] = env
     name = "adaptive-memory-engine"
     if client == "generic":
         payload = server
@@ -843,6 +855,29 @@ def _ame_command() -> str:
     if found:
         return str(Path(found).expanduser().resolve())
     return "ame"
+
+
+def _ame_path_env() -> str | None:
+    bin_dir = _ame_bin_dir()
+    current_path = os.environ.get("PATH", "")
+    if bin_dir is None:
+        return current_path or None
+    bin_value = str(bin_dir)
+    parts = [part for part in current_path.split(os.pathsep) if part and part != bin_value]
+    return os.pathsep.join([bin_value, *parts])
+
+
+def _ame_bin_dir() -> Path | None:
+    current = Path(sys.argv[0]).expanduser()
+    if current.name == "ame":
+        try:
+            return current.resolve().parent
+        except OSError:
+            return current.parent
+    found = shutil.which("ame")
+    if found:
+        return Path(found).expanduser().resolve().parent
+    return None
 
 
 def _profile_disk_path() -> Path:

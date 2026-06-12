@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5 - 2026-06-12
+
+- Changed MCP config output to use `command: "ame"` by default.
+- Added `--include-path-env` for MCP clients that need PATH included in generated config.
+- Added `--absolute-command` for users who prefer the previous absolute executable path behavior.
+
 ## 0.1.4 - 2026-06-11
 
 - Updated MCP client config generation to use the absolute `ame` executable path.

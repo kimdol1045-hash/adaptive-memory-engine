@@ -7,12 +7,12 @@ The preferred UX is agent-first: connect AME through MCP, then ask Codex or
 Claude Code to diagnose hardware, recommend models, build memory, and answer
 questions in natural language.
 
-Current status: alpha, distributed through TestPyPI. Current beta version: `0.1.4`.
+Current status: alpha, distributed through TestPyPI. Current beta version: `0.1.5`.
 
 ## 1. Install
 
 No `pipx` required. Copy and run.
-The virtual environment is only the install location; you do not need to
+The virtual environment is only the install folder for AME; you do not need to
 activate it every time.
 
 ```bash
@@ -21,45 +21,46 @@ python3 -m venv ~/.ame
 ~/.ame/bin/python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  adaptive-memory-engine==0.1.4
-```
+  adaptive-memory-engine==0.1.5
 
-Check the install:
-
-```bash
-~/.ame/bin/ame --help
-```
-
-If `~/.ame/bin/ame --help` works, the install is good.
-
-If you want to type just `ame` in your terminal, add it to PATH once:
-
-```bash
 echo 'export PATH="$HOME/.ame/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ame --help
 ```
 
-This is only for terminal convenience. MCP config still uses the absolute
-`~/.ame/bin/ame` path for reliability.
+If `ame --help` works, the install is good.
+
+Even when you only use custom MCP, the AME executable still needs to exist
+locally. TestPyPI/GitHub distributes the package; the MCP client starts a local
+`ame mcp stdio` process so AME can read local documents and use local LLMs.
 
 ## 2. Connect Codex Or Claude Code
 
 Print a Codex MCP config:
 
 ```bash
-~/.ame/bin/ame connect --client codex
+ame connect --client codex
 ```
 
 Print a Claude Code MCP config:
 
 ```bash
-~/.ame/bin/ame connect --client claude
+ame connect --client claude
 ```
 
 Add the printed JSON to the client MCP settings.
-The `command` field uses an absolute path such as `~/.ame/bin/ame`, so the MCP
-client does not need the virtual environment to be activated every time.
+By default, the `command` field is `ame`, not an absolute executable path.
+
+```json
+{
+  "command": "ame",
+  "args": ["mcp", "stdio"]
+}
+```
+
+The default config does not include an absolute executable path. `AME_HOME` is
+only added to `env` when you use a custom AME data folder. The MCP client does
+not need the virtual environment to be activated every time.
 
 This works even before a corpus exists. The bootstrap MCP server lets Codex or
 Claude Code diagnose hardware, plan model downloads, build memory, and query the
@@ -122,17 +123,27 @@ ame> /exit
 ## Troubleshooting
 
 The virtual environment is only used to isolate the Python package install. Once
-the MCP config is added, Codex or Claude Code launches `ame` through the absolute
-path in that config.
+the MCP config is added, Codex or Claude Code launches the `ame` command.
 
-If `ame` is not on PATH, the install can still be valid. Use the absolute path:
+If `ame` is not on PATH, reload your shell config:
 
 ```bash
-~/.ame/bin/ame --help
-~/.ame/bin/ame connect --client codex
+source ~/.zshrc
+ame --help
+ame connect --client codex
 ```
 
-Add `~/.ame/bin` to PATH if you also want the short `ame` command in your shell.
+If the MCP client still cannot find `ame`, include PATH in the generated JSON:
+
+```bash
+ame connect --client codex --include-path-env
+```
+
+If that still fails, use the previous absolute command mode:
+
+```bash
+ame connect --client codex --absolute-command
+```
 
 New versions use `ame` as the recommended command because the older `memory`
 command can collide with previous installs. `memory` remains as a compatibility

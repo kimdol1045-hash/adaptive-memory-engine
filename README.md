@@ -7,12 +7,12 @@ Codex나 Claude Code가 그 메모리를 보고 답할 수 있게 해주는 loca
 
 사용자가 매번 긴 명령어를 치는 방식보다, **Codex/Claude Code에 AME를 연결하고 자연어로 맡기는 방식**을 우선합니다.
 
-현재는 alpha 단계이며 TestPyPI로 베타 배포 중입니다. 현재 베타 버전은 `0.1.4`입니다.
+현재는 alpha 단계이며 TestPyPI로 베타 배포 중입니다. 현재 베타 버전은 `0.1.5`입니다.
 
 ## 1. 설치
 
 `pipx`가 없어도 됩니다. 아래를 그대로 실행합니다.
-가상환경은 설치 위치로만 쓰고, 매번 활성화하지 않습니다.
+가상환경은 실행 모드가 아니라 AME를 담아두는 설치 폴더로만 씁니다.
 
 ```bash
 python3 -m venv ~/.ame
@@ -20,44 +20,42 @@ python3 -m venv ~/.ame
 ~/.ame/bin/python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  adaptive-memory-engine==0.1.4
-```
+  adaptive-memory-engine==0.1.5
 
-설치 확인:
-
-```bash
-~/.ame/bin/ame --help
-```
-
-`~/.ame/bin/ame --help`가 보이면 정상입니다.
-
-터미널에서도 `ame`만 입력하고 싶다면 PATH에 한 번만 추가합니다.
-
-```bash
 echo 'export PATH="$HOME/.ame/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ame --help
 ```
 
-이 설정은 터미널 편의용입니다. MCP 설정은 여전히 `~/.ame/bin/ame` 절대경로를 사용하므로 더 안정적입니다.
+`ame --help`가 보이면 정상입니다.
+
+커스텀 MCP로만 쓸 때도 AME 실행 파일은 로컬에 있어야 합니다. TestPyPI/GitHub는 설치 파일을 배포하는 곳이고, MCP 클라이언트는 로컬에서 `ame mcp stdio` 프로세스를 실행합니다.
 
 ## 2. Codex 또는 Claude Code에 연결
 
 Codex용 MCP 설정을 출력합니다.
 
 ```bash
-~/.ame/bin/ame connect --client codex
+ame connect --client codex
 ```
 
 Claude Code용 MCP 설정은 다음과 같습니다.
 
 ```bash
-~/.ame/bin/ame connect --client claude
+ame connect --client claude
 ```
 
 출력된 JSON을 Codex 또는 Claude Code의 MCP 설정에 추가합니다.
-JSON 안의 `command`에는 `~/.ame/bin/ame` 같은 절대경로가 들어갑니다.
-그래서 MCP 클라이언트가 실행될 때마다 가상환경을 직접 활성화할 필요는 없습니다.
+기본 JSON의 `command`는 절대경로가 아니라 `ame`입니다.
+
+```json
+{
+  "command": "ame",
+  "args": ["mcp", "stdio"]
+}
+```
+
+기본 설정에는 실행 파일 절대경로를 넣지 않습니다. `AME_HOME`을 따로 지정한 경우에만 메모리 데이터 폴더가 `env`에 들어갑니다. MCP 클라이언트가 실행될 때마다 가상환경을 직접 활성화할 필요는 없습니다.
 
 이때 아직 문서 메모리를 만들지 않았어도 괜찮습니다. `ame connect --client ...`는 bootstrap MCP 설정을 출력하므로, Codex/Claude Code가 사양 진단부터 메모리 구축까지 진행할 수 있습니다.
 
@@ -117,14 +115,26 @@ ame> /exit
 ## 설치 문제 해결
 
 가상환경은 패키지를 격리해서 설치하기 위한 용도입니다.
-MCP 설정을 한 번 추가한 뒤에는 Codex/Claude Code가 설정에 들어간 절대경로로 `ame`를 직접 실행합니다.
+MCP 설정을 한 번 추가한 뒤에는 Codex/Claude Code가 `ame` 명령을 직접 실행합니다.
 
-터미널에서 `ame` 명령이 안 보여도 `~/.ame/bin/ame`가 실행되면 설치는 정상입니다.
-터미널에서도 짧게 쓰고 싶으면 `~/.ame/bin`을 PATH에 추가하세요.
+터미널에서 `ame` 명령이 안 보이면 PATH를 다시 적용합니다.
 
 ```bash
-~/.ame/bin/ame --help
-~/.ame/bin/ame connect --client codex
+source ~/.zshrc
+ame --help
+ame connect --client codex
+```
+
+MCP 클라이언트가 `ame`를 찾지 못한다면 PATH를 JSON에 같이 넣을 수 있습니다.
+
+```bash
+ame connect --client codex --include-path-env
+```
+
+그래도 안 되면 예전 방식처럼 실행 파일 절대경로를 넣을 수 있습니다.
+
+```bash
+ame connect --client codex --absolute-command
 ```
 
 예전 문서의 `memory` 명령과 충돌할 수 있어서, 새 버전에서는 `ame` 명령을 기본으로 사용합니다.
