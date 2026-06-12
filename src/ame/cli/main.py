@@ -11,6 +11,8 @@ from typing import Literal
 import typer
 
 from ame import __version__
+from ame.agent.load_jobs import cancel_load_job, cleanup_load_artifacts, latest_load_job, read_load_job
+from ame.agent.load_plan import build_load_plan
 from ame.agent.mcp import BootstrapMcpToolbox, LocalMcpToolbox, McpStdioServer
 from ame.agent.memory_api import AgentMemoryAPI
 from ame.connectors.router import ConnectorRouter
@@ -220,6 +222,40 @@ def load(
         f"{report.rejected} rejected item(s)."
     )
     typer.echo(f"LightRAG custom KG staged: {report.custom_kg_path}")
+
+
+@app.command("plan")
+def plan_load(source_path: Path, profile: str | None = None) -> None:
+    plan = build_load_plan(source_path, profile)
+    typer.echo(json.dumps(plan.model_dump(mode="json"), ensure_ascii=False, indent=2))
+
+
+@app.command("load-status")
+def load_status(job_id: str | None = None, corpus_id: str | None = None) -> None:
+    if job_id:
+        job = read_load_job(job_id)
+    else:
+        job = latest_load_job(corpus_id)
+    if job is None:
+        typer.echo("No AME load job found.", err=True)
+        raise typer.Exit(1)
+    typer.echo(json.dumps(job, ensure_ascii=False, indent=2, default=str))
+
+
+@app.command("load-cancel")
+def load_cancel(job_id: str) -> None:
+    typer.echo(json.dumps(cancel_load_job(job_id), ensure_ascii=False, indent=2, default=str))
+
+
+@app.command("cleanup")
+def cleanup(corpus_id: str | None = None, include_jobs: bool = typer.Option(False, "--include-jobs")) -> None:
+    typer.echo(json.dumps(cleanup_load_artifacts(corpus_id=corpus_id, include_jobs=include_jobs), ensure_ascii=False, indent=2))
+
+
+@app.command("corpus-status")
+def corpus_status(corpus_id: str) -> None:
+    result = BootstrapMcpToolbox().call("ame_corpus_status", {"corpus_id": corpus_id})
+    typer.echo(json.dumps(result, ensure_ascii=False, indent=2, default=str))
 
 
 @app.command()

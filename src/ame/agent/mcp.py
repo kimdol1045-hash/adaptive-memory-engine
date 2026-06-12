@@ -8,26 +8,34 @@ from typing import Any, TextIO
 
 from pydantic import BaseModel, Field
 
-from ame.agent.load_jobs import latest_load_job, read_load_job, start_load_job
+from ame.agent.load_jobs import cancel_load_job, cleanup_load_artifacts, latest_load_job, load_jobs, read_load_job, start_load_job
+from ame.agent.load_plan import build_load_plan
 from ame.agent.memory_api import AgentMemoryAPI
+from ame.bronze.store import BronzeStore
 from ame.core.config import load_config
 from ame.core.corpus import create_corpus, require_corpus
 from ame.core.paths import ame_home, ensure_runtime_layout
+from ame.core.state import CorpusStateStore
+from ame.gold.store import GoldStore
 from ame.hardware.profiler import HardwareProfiler
 from ame.models.download import OllamaModelInstaller
 from ame.models.registry import load_default_registry
 from ame.models.router import ModelRouter
 from ame.pipeline import MemoryPipeline
+from ame.silver.store import SilverStore
+from ame.storage.lightrag_adapter import LightRagAdapter
 
 
-SERVER_VERSION = "0.1.14"
+SERVER_VERSION = "0.1.15"
 
 MCP_INSTRUCTIONS = "\n".join(
     [
         "Use AME MCP tools before shell commands when the user asks about AME setup, AME local model recommendations, local document memory, local RAG, or Bronze/Silver/Gold memory.",
         "Start AME setup conversations with ame_flow, then use ame_doctor for hardware/model diagnosis.",
         "Use ame_setup with execute=false to show a model download plan. Use execute=true only after explicit user approval.",
+        "Before loading large local documents, call ame_load_plan to estimate chunk count, risk, and runtime.",
         "For llm memory builds, ame_load starts a background job by default. Poll ame_load_status before querying the corpus.",
+        "If a load job is stuck or no longer wanted, use ame_load_cancel instead of shell kill.",
         "Use bootstrap MCP for hardware/model diagnosis; do not call corpus-bound tools or example corpus IDs for setup diagnosis.",
         "Do not invent or try sample corpus names such as openclaw unless the user explicitly provided that corpus.",
         "When replying in Korean, use polite '~입니다' and '~습니다' style and handle one flow stage at a time.",
@@ -121,7 +129,7 @@ BOOTSTRAP_TOOLS = [
             "properties": {
                 "stage": {
                     "type": "string",
-                    "enum": ["all", "diagnose", "model_plan", "model_install", "load", "query"],
+                    "enum": ["all", "diagnose", "model_plan", "model_install", "load_plan", "load", "query"],
                     "description": "Flow stage to return. Defaults to all.",
                 },
             },
@@ -140,6 +148,18 @@ BOOTSTRAP_TOOLS = [
             "properties": {
                 "execute": {"type": "boolean", "description": "Pull missing models when true. Defaults to false."},
             },
+        },
+    ),
+    McpToolSpec(
+        name="ame_load_plan",
+        description="Analyze a local source path before memory build and estimate Bronze chunks, local LLM calls, risk, and recommendations.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "source_path": {"type": "string"},
+                "profile": {"type": "string"},
+            },
+            "required": ["source_path"],
         },
     ),
     McpToolSpec(
@@ -168,6 +188,39 @@ BOOTSTRAP_TOOLS = [
             "properties": {
                 "job_id": {"type": "string"},
                 "corpus_id": {"type": "string", "description": "Return the latest load job for this corpus when job_id is omitted."},
+            },
+        },
+    ),
+    McpToolSpec(
+        name="ame_load_cancel",
+        description="Cancel a running background ame_load job and remove staged ingest artifacts without changing the committed corpus.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "job_id": {"type": "string"},
+            },
+            "required": ["job_id"],
+        },
+    ),
+    McpToolSpec(
+        name="ame_corpus_status",
+        description="Inspect a corpus state, last load job, staging artifacts, and Bronze/Silver/Gold counts.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "corpus_id": {"type": "string"},
+            },
+            "required": ["corpus_id"],
+        },
+    ),
+    McpToolSpec(
+        name="ame_cleanup",
+        description="Remove stale AME ingest staging folders and optionally failed/stale/cancelled job logs. Does not delete committed corpora.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "corpus_id": {"type": "string"},
+                "include_jobs": {"type": "boolean", "description": "Also remove failed/stale/cancelled job logs. Defaults to false."},
             },
         },
     ),
@@ -275,6 +328,12 @@ class BootstrapMcpToolbox:
             return self._doctor()
         if tool_name == "ame_setup":
             return self._setup(execute=bool(arguments.get("execute", False)))
+        if tool_name == "ame_load_plan":
+            source_path = str(arguments.get("source_path") or "").strip()
+            if not source_path:
+                raise ValueError("ame_load_plan requires source_path")
+            profile = arguments.get("profile")
+            return self._load_plan(Path(source_path).expanduser(), profile=str(profile) if profile else None)
         if tool_name == "ame_load":
             corpus_id = str(arguments.get("corpus_id") or "").strip()
             source_path = str(arguments.get("source_path") or "").strip()
@@ -302,6 +361,19 @@ class BootstrapMcpToolbox:
             job_id = str(arguments.get("job_id") or "").strip()
             corpus_id = str(arguments.get("corpus_id") or "").strip()
             return self._load_status(job_id=job_id or None, corpus_id=corpus_id or None)
+        if tool_name == "ame_load_cancel":
+            job_id = str(arguments.get("job_id") or "").strip()
+            if not job_id:
+                raise ValueError("ame_load_cancel requires job_id")
+            return self._load_cancel(job_id)
+        if tool_name == "ame_corpus_status":
+            corpus_id = str(arguments.get("corpus_id") or "").strip()
+            if not corpus_id:
+                raise ValueError("ame_corpus_status requires corpus_id")
+            return self._corpus_status(corpus_id)
+        if tool_name == "ame_cleanup":
+            corpus_id = str(arguments.get("corpus_id") or "").strip()
+            return self._cleanup(corpus_id=corpus_id or None, include_jobs=bool(arguments.get("include_jobs", False)))
         if tool_name == "ame_connect":
             corpus_id = str(arguments.get("corpus_id") or "").strip()
             if not corpus_id:
@@ -369,6 +441,7 @@ class BootstrapMcpToolbox:
     def _load(self, corpus_id: str, source_path: Path, *, mode: str, profile: str | None, background: bool) -> dict[str, Any]:
         ensure_runtime_layout()
         create_corpus(corpus_id)
+        plan = build_load_plan(source_path, profile)
         if background:
             job = start_load_job(corpus_id, source_path, mode=mode, profile=profile)
             return {
@@ -378,6 +451,7 @@ class BootstrapMcpToolbox:
                 "corpus_id": corpus_id,
                 "source_path": str(source_path),
                 "mode": mode,
+                "load_plan": plan.model_dump(mode="json"),
                 "message": "Memory build is running in the background. Poll ame_load_status until status is completed or failed.",
                 "next_steps": [
                     f"Call ame_load_status with job_id={job['job_id']!r}.",
@@ -390,6 +464,7 @@ class BootstrapMcpToolbox:
             "background": False,
             "corpus_id": corpus_id,
             "source_path": str(source_path),
+            "load_plan": plan.model_dump(mode="json"),
             "report": report.model_dump(mode="json"),
             "next_steps": [
                 f"Use memory_search with corpus_id={corpus_id!r} to answer grounded questions.",
@@ -416,18 +491,73 @@ class BootstrapMcpToolbox:
                 f"Use memory_query with corpus_id={job.get('corpus_id')!r} for natural-language answers.",
             ]
         elif status in {"starting", "running"}:
-            payload["next_steps"] = ["Wait and call ame_load_status again.", "Do not query this corpus until the job is completed."]
+            payload["next_steps"] = [
+                "Wait and call ame_load_status again.",
+                "Check job.progress.stage/current/total to see where the build is.",
+                "Use ame_load_cancel with this job_id if the job is no longer wanted.",
+                "Do not query this corpus until the job is completed.",
+            ]
         elif status == "failed":
             payload["next_steps"] = [
                 "Report the error and stderr_tail to the user.",
-                "Report the error and ask whether to retry with a smaller source folder or after reducing document chunk size.",
+                "The transactional build was rolled back; the committed corpus was not replaced.",
+                "Use ame_load_plan before retrying with a smaller source folder or digest source.",
             ]
         elif status == "stale":
             payload["next_steps"] = [
                 "Report that the worker process is no longer running and no final status was written.",
-                "Start a new ame_load job after confirming the previous process is gone.",
+                "Run ame_cleanup to remove stale staging folders before starting a new ame_load job.",
             ]
+        elif status == "cancelled":
+            payload["next_steps"] = ["The committed corpus was not changed.", "Run ame_load again when ready."]
         return payload
+
+    def _load_plan(self, source_path: Path, *, profile: str | None) -> dict[str, Any]:
+        plan = build_load_plan(source_path, profile)
+        next_steps = [
+            "Use a new clean corpus_id for this build.",
+            "Call ame_load only after the user agrees with the plan.",
+        ]
+        if plan.risk == "high":
+            next_steps.append("Warn the user that this may take a long time on local LLMs and suggest digest/smaller sections if needed.")
+        return {"status": "planned", "plan": plan.model_dump(mode="json"), "next_steps": next_steps}
+
+    def _load_cancel(self, job_id: str) -> dict[str, Any]:
+        job = cancel_load_job(job_id)
+        return {"status": job.get("status"), "job": job, "next_steps": ["Use ame_corpus_status to confirm the committed corpus state."]}
+
+    def _corpus_status(self, corpus_id: str) -> dict[str, Any]:
+        root = require_corpus(corpus_id)
+        state = CorpusStateStore(root, corpus_id=corpus_id).read()
+        silver = SilverStore(root)
+        gold = GoldStore(root)
+        latest = latest_load_job(corpus_id)
+        staging_dirs = [
+            str(child)
+            for child in sorted(root.parent.iterdir())
+            if child.is_dir() and child.name.startswith(f".{corpus_id}.") and (".ingest-" in child.name or ".backup-" in child.name)
+        ]
+        return {
+            "status": "ready" if state.last_ingest_at else "empty",
+            "corpus_id": corpus_id,
+            "path": str(root),
+            "last_ingest_at": state.last_ingest_at,
+            "last_mode": state.last_mode,
+            "counts": {
+                "bronze_documents": len(list(BronzeStore(root).list())),
+                "silver_entities": len(silver.entities()),
+                "silver_relations": len(silver.relations()),
+                "silver_decisions": len(silver.decisions()),
+                "gold_nodes": len(gold.nodes()),
+                "gold_edges": len(gold.edges()),
+            },
+            "lightrag": LightRagAdapter(root).status(),
+            "latest_load_job": latest,
+            "staging_dirs": staging_dirs,
+        }
+
+    def _cleanup(self, *, corpus_id: str | None, include_jobs: bool) -> dict[str, Any]:
+        return cleanup_load_artifacts(corpus_id=corpus_id, include_jobs=include_jobs)
 
     def _connect(self, corpus_id: str, *, client: str) -> dict[str, Any]:
         require_corpus(corpus_id)
@@ -812,12 +942,47 @@ def _ame_flow(*, stage: str = "all") -> dict[str, Any]:
             ),
         },
         {
+            "stage": "load_plan",
+            "user_intents": ["이 파일 메모리화해줘", "이 폴더를 읽히기 전에 확인해줘"],
+            "tool": "ame_load_plan",
+            "branching": [
+                "source_path가 없으면 문서 폴더나 파일 경로를 요청합니다.",
+                "risk가 high이면 바로 실행하지 말고 chunk 수, 예상 시간, digest/분할 권장을 먼저 설명합니다.",
+                "risk가 low 또는 medium이면 새 clean corpus_id를 제안하고 사용자의 진행 의사를 확인합니다.",
+            ],
+            "response_template": [
+                "대상 경로.",
+                "문서/청크 규모: files, bronze_chunks, total_chars, largest_chunk_chars.",
+                "예상 LLM 호출 수와 소요 시간.",
+                "위험도와 이유.",
+                "추천 실행 방식: clean corpus, background load, digest/smaller sections.",
+            ],
+            "output_template": "\n".join(
+                [
+                    "메모리 구축 전 사전 점검 결과입니다.",
+                    "",
+                    "- 대상 경로: {source_path}",
+                    "- 원본 파일 수: {source_files}",
+                    "- 예상 Bronze chunk: {bronze_chunks}",
+                    "- 예상 로컬 LLM 호출: {estimated_llm_calls}",
+                    "- 가장 큰 chunk: {largest_chunk_chars}자",
+                    "- 위험도: {risk}",
+                    "",
+                    "추천:",
+                    "{recommendation}",
+                    "",
+                    "이 계획대로 새 corpus `{corpus_id}`에 메모리 구축을 시작할까요?",
+                ]
+            ),
+        },
+        {
             "stage": "load",
             "user_intents": ["이 폴더를 메모리화해줘", "문서 읽혀서 RAG 구축해줘"],
-            "tool": "ame_load, then ame_load_status",
+            "tool": "ame_load_plan, then ame_load, then ame_load_status",
             "branching": [
                 "source_path가 없으면 문서 폴더 경로를 요청합니다.",
                 "corpus_id가 없으면 짧은 소문자 corpus 이름을 제안합니다.",
+                "처음 보는 source_path이면 ame_load_plan으로 규모와 위험도를 먼저 확인합니다.",
                 "llm 모드의 ame_load는 기본적으로 background job을 시작하므로, 완료될 때까지 ame_load_status를 확인합니다.",
                 "구축이 성공하면 query 단계로 이동합니다.",
             ],
@@ -882,7 +1047,7 @@ def _ame_flow(*, stage: str = "all") -> dict[str, Any]:
     ]
     valid = {item["stage"] for item in stages} | {"all"}
     if stage not in valid:
-        raise ValueError("stage must be one of all, diagnose, model_plan, model_install, load, query")
+        raise ValueError("stage must be one of all, diagnose, model_plan, model_install, load_plan, load, query")
     selected = stages if stage == "all" else [item for item in stages if item["stage"] == stage]
     return {
         "style_rules": [

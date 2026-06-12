@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -42,6 +43,9 @@ class IngestReport(BaseModel):
     custom_kg_path: Path
 
 
+ProgressCallback = Callable[[dict], None]
+
+
 class MemoryPipeline:
     def ingest(
         self,
@@ -50,16 +54,29 @@ class MemoryPipeline:
         mode: Literal["deterministic", "llm"] = "llm",
         llm_client: LlmClient | None = None,
         profile: str | None = None,
+        progress: ProgressCallback | None = None,
     ) -> IngestReport:
         root = require_corpus(corpus_id)
         transaction = _IngestTransaction(root)
         staging_root = transaction.stage()
         try:
-            report = self._ingest_into(staging_root, corpus_id, source_path, mode=mode, llm_client=llm_client, profile=profile)
+            _emit(progress, stage="staging", message="Created transactional ingest staging directory.", staging_root=str(staging_root))
+            report = self._ingest_into(
+                staging_root,
+                corpus_id,
+                source_path,
+                mode=mode,
+                llm_client=llm_client,
+                profile=profile,
+                progress=progress,
+            )
+            _emit(progress, stage="commit", message="Committing staged memory build.")
             transaction.commit(staging_root)
+            _emit(progress, stage="completed", message="Memory build committed.")
             return report.model_copy(update={"custom_kg_path": root / "store" / "lightrag" / "custom_kg.json"})
         except Exception:
             transaction.rollback(staging_root)
+            _emit(progress, stage="rolled_back", message="Memory build failed and staged artifacts were removed.")
             raise
 
     def _ingest_into(
@@ -71,16 +88,33 @@ class MemoryPipeline:
         mode: Literal["deterministic", "llm"],
         llm_client: LlmClient | None,
         profile: str | None,
+        progress: ProgressCallback | None,
     ) -> IngestReport:
         config = load_config()
         connector = ConnectorRouter().resolve(source_path, profile)
         bronze = BronzeStore(root)
         extractor = DeterministicExtractor() if mode == "deterministic" else LlmExtractor(llm_client or self._default_llm_client(config))
 
+        refs = connector.scan(source_path)
+        _emit(
+            progress,
+            stage="bronze",
+            current=0,
+            total=len(refs),
+            message="Scanning source documents and writing Bronze chunks.",
+        )
         docs_by_id = {}
-        for ref in connector.scan(source_path):
+        for index, ref in enumerate(refs, start=1):
             doc = bronze.put(connector.load(corpus_id, ref))
             docs_by_id[doc.id] = doc
+            _emit(
+                progress,
+                stage="bronze",
+                current=index,
+                total=len(refs),
+                source_id=ref.source_id,
+                message="Bronze chunk stored.",
+            )
         current_docs = list(docs_by_id.values())
         all_docs = list(bronze.list())
         doc_map = {doc.id: doc for doc in current_docs}
@@ -95,7 +129,16 @@ class MemoryPipeline:
         ]
         new_decisions = []
 
-        for doc in current_docs:
+        for index, doc in enumerate(current_docs, start=1):
+            _emit(
+                progress,
+                stage="silver_extraction",
+                current=index,
+                total=len(current_docs),
+                source_id=doc.source_id,
+                chars=len(doc.content),
+                message="Extracting Silver entities, relations, and decisions with local LLM.",
+            )
             extracted_entities, extracted_relations, extracted_decisions = extractor.extract(doc)
             valid_entities = []
             for entity in extracted_entities:
@@ -139,11 +182,26 @@ class MemoryPipeline:
             entities.extend(valid_entities)
             decisions.extend(valid_decisions)
             new_decisions.extend(valid_decisions)
+            _emit(
+                progress,
+                stage="silver_extraction",
+                current=index,
+                total=len(current_docs),
+                source_id=doc.source_id,
+                entities=len(entities),
+                relations=len(relations),
+                decisions=len(decisions),
+                rejected=len(rejected),
+                message="Silver extraction chunk completed.",
+            )
 
+        _emit(progress, stage="rationale", message="Extracting rationale memory from accepted decisions.")
         rationales = existing_rationales + RationaleExtractor().extract(current_docs, new_decisions)
         silver.replace(entities, relations, decisions, rejected, rationales)
+        _emit(progress, stage="gold", message="Building Gold graph and timeline.")
         nodes, edges, timeline = GoldBuilder().build(entities, relations, decisions, rationales)
         GoldStore(root).replace(nodes, edges, timeline)
+        _emit(progress, stage="lightrag", message="Syncing Gold graph and Bronze chunks into LightRAG custom KG.")
         kg_path = LightRagAdapter(root).sync(nodes, edges, current_docs)
         counts = {
             "documents": len(all_docs),
@@ -215,6 +273,11 @@ def _rejected_uses_sources(row: dict, source_ids: set[str]) -> bool:
         elif isinstance(value, list):
             values.update(str(item) for item in value)
     return bool(values & source_ids)
+
+
+def _emit(callback: ProgressCallback | None, **event) -> None:
+    if callback is not None:
+        callback(event)
 
 
 class _IngestTransaction:

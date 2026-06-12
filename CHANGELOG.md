@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.15 - 2026-06-12
+
+- Add `ame_load_plan` to estimate file count, Bronze chunk count, local LLM calls, runtime risk, and safer load recommendations before ingest starts.
+- Add background load progress heartbeats so `ame_load_status` reports the current Bronze/Silver/Gold/LightRAG stage.
+- Add `ame_load_cancel`, `ame_corpus_status`, and `ame_cleanup` for stuck job recovery and stale staging cleanup without deleting committed corpora.
+- Prefer Ollama `/api/chat` with `think=false`, JSON format, and deterministic options for local LLM extraction, with generate fallback.
+- Add CLI mirrors for load planning, load status, load cancel, cleanup, and corpus status.
+
 ## 0.1.14 - 2026-06-12
 
 - Make ingest transactional: Bronze/Silver/Gold/LightRAG outputs are staged first and committed only after the full memory build succeeds.

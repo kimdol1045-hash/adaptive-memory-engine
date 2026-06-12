@@ -7,7 +7,7 @@ The preferred UX is agent-first: connect AME through MCP, then ask Codex or
 Claude Code to diagnose hardware, recommend models, build memory, and answer
 questions in natural language.
 
-Current status: alpha, distributed through PyPI. Current version: `0.1.14`.
+Current status: alpha, distributed through PyPI. Current version: `0.1.15`.
 
 ## 1. Install
 
@@ -111,7 +111,8 @@ After reviewing the plan, approve installation:
 Approved. Install the required models.
 ```
 
-Then build memory from a folder:
+Then build memory from a folder. AME should first call `ame_load_plan` to inspect
+size and risk, then start `ame_load` if the plan looks acceptable:
 
 ```text
 Build memory named my-docs from /Users/me/Documents/planning.
@@ -126,7 +127,7 @@ Using my-docs memory, tell me the current decisions and their rationale.
 The expected flow is:
 
 ```text
-ame_flow -> ame_doctor -> ame_setup execute=false -> user approval -> ame_setup execute=true -> ame_load -> ame_load_status -> memory_query/memory_search
+ame_flow -> ame_doctor -> ame_setup execute=false -> user approval -> ame_setup execute=true -> ame_load_plan -> ame_load -> ame_load_status -> memory_query/memory_search
 ```
 
 Hardware diagnosis and model recommendation do not require a corpus. Choose a
@@ -179,6 +180,24 @@ This will use local disk and download time.
 Should I install these models?
 ```
 
+Recommended load plan response:
+
+```text
+Memory build preflight result.
+
+- source path: ...
+- source files: ...
+- expected Bronze chunks: ...
+- expected local LLM calls: ...
+- largest chunk: ...
+- risk: ...
+
+Recommendation:
+...
+
+Should I start building this into a new corpus named `...`?
+```
+
 Recommended memory build response:
 
 ```text
@@ -187,6 +206,8 @@ Memory build result.
 - corpus: ...
 - source folder: ...
 - build path: Bronze -> Silver -> Gold
+- status: ...
+- job_id: ...
 - processed documents: ...
 - Gold nodes: ...
 - Gold edges: ...
@@ -202,8 +223,12 @@ AME exposes these tools to Codex or Claude Code:
 - `ame_doctor`: diagnose hardware and local model status
 - `ame_flow`: return the step-by-step flow and response templates
 - `ame_setup`: plan or execute recommended model downloads
+- `ame_load_plan`: inspect source size, chunk count, local LLM calls, and load risk before ingest
 - `ame_load`: build Bronze/Silver/Gold memory from a folder
-- `ame_load_status`: check long-running memory build jobs
+- `ame_load_status`: check long-running memory build jobs and current stage
+- `ame_load_cancel`: cancel a background memory build without replacing committed corpus data
+- `ame_corpus_status`: inspect corpus state, LightRAG state, and Bronze/Silver/Gold counts
+- `ame_cleanup`: remove stale staging folders and optional failed job logs
 - `ame_corpora`: list built corpora
 - `memory_search`, `memory_query`: answer from built memory
 - `memory_graph`, `memory_decisions`, `memory_timeline`, `memory_why`: structured memory lookup
@@ -223,7 +248,9 @@ You can also use AME directly:
 ame doctor
 ame setup
 ame setup --execute
+ame plan ./path/to/markdown-docs
 ame load my-docs ./path/to/markdown-docs
+ame load-status --corpus-id my-docs
 ame chat my-docs
 ```
 

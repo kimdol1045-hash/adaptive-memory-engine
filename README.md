@@ -7,7 +7,7 @@ Codex나 Claude Code가 그 메모리를 보고 답할 수 있게 해주는 loca
 
 사용자가 매번 긴 명령어를 치는 방식보다, **Codex/Claude Code에 AME를 연결하고 자연어로 맡기는 방식**을 우선합니다.
 
-현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.14`입니다.
+현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.15`입니다.
 
 ## 1. 설치
 
@@ -103,7 +103,7 @@ AME MCP를 사용해서 단계별로 진행해줘.
 승인할게. 필요한 모델을 설치해줘.
 ```
 
-문서 폴더와 corpus 이름을 지정해서 메모리를 구축합니다.
+문서 폴더와 corpus 이름을 지정해서 메모리를 구축합니다. AME는 먼저 `ame_load_plan`으로 규모와 위험도를 점검한 뒤, 안전하면 `ame_load`를 실행합니다.
 
 ```text
 /Users/me/Documents/planning 폴더를 my-docs라는 이름으로 메모리화해줘.
@@ -118,7 +118,7 @@ my-docs 메모리를 기준으로 현재 유효한 결정과 그 근거를 알�
 정상 플로우는 다음 순서입니다.
 
 ```text
-ame_flow -> ame_doctor -> ame_setup execute=false -> 사용자 승인 -> ame_setup execute=true -> ame_load -> ame_load_status -> memory_query/memory_search
+ame_flow -> ame_doctor -> ame_setup execute=false -> 사용자 승인 -> ame_setup execute=true -> ame_load_plan -> ame_load -> ame_load_status -> memory_query/memory_search
 ```
 
 사양 진단과 모델 추천 단계에서는 corpus가 필요 없습니다. 문서 메모리 구축 단계에서만 corpus 이름을 정하면 됩니다.
@@ -172,6 +172,24 @@ ame_flow에서 model_plan 단계의 output_template을 보여줘.
 이 계획대로 모델을 설치해도 될까요?
 ```
 
+문서 메모리 구축 전 점검:
+
+```text
+메모리 구축 전 사전 점검 결과입니다.
+
+- 대상 경로: ...
+- 원본 파일 수: ...
+- 예상 Bronze chunk: ...
+- 예상 로컬 LLM 호출: ...
+- 가장 큰 chunk: ...
+- 위험도: ...
+
+추천:
+...
+
+이 계획대로 새 corpus `...`에 메모리 구축을 시작할까요?
+```
+
 문서 메모리 구축:
 
 ```text
@@ -180,6 +198,8 @@ ame_flow에서 model_plan 단계의 output_template을 보여줘.
 - corpus: ...
 - 대상 폴더: ...
 - 구축 방식: Bronze -> Silver -> Gold
+- 상태: ...
+- job_id: ...
 - 처리 문서: ...
 - Gold nodes: ...
 - Gold edges: ...
@@ -195,8 +215,12 @@ Codex/Claude Code는 AME MCP를 통해 다음 도구를 사용할 수 있습니�
 - `ame_doctor`: 컴퓨터 사양과 로컬 모델 상태 진단
 - `ame_flow`: 단계별 진행 방식과 응답 템플릿 확인
 - `ame_setup`: 추천 모델 다운로드 계획 또는 실행
+- `ame_load_plan`: 문서 메모리 구축 전 파일 수, chunk 수, LLM 호출 수, 위험도 점검
 - `ame_load`: 문서 폴더를 Bronze/Silver/Gold 메모리로 구축
-- `ame_load_status`: 오래 걸리는 문서 메모리 구축 job 상태 확인
+- `ame_load_status`: 오래 걸리는 문서 메모리 구축 job 상태와 현재 진행 단계 확인
+- `ame_load_cancel`: 오래 걸리거나 원치 않는 background job 취소
+- `ame_corpus_status`: corpus의 마지막 ingest, LightRAG 상태, Bronze/Silver/Gold 수 확인
+- `ame_cleanup`: stale staging 폴더와 실패 job 로그 정리
 - `ame_corpora`: 만들어진 corpus 목록 확인
 - `memory_search`, `memory_query`: 구축된 메모리 기반 질문
 - `memory_graph`, `memory_decisions`, `memory_timeline`, `memory_why`: 구조화된 메모리 조회
@@ -213,7 +237,9 @@ Codex/Claude Code는 AME MCP를 통해 다음 도구를 사용할 수 있습니�
 ame doctor
 ame setup
 ame setup --execute
+ame plan ./path/to/markdown-docs
 ame load my-docs ./path/to/markdown-docs
+ame load-status --corpus-id my-docs
 ame chat my-docs
 ```
 

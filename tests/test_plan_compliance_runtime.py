@@ -151,7 +151,7 @@ def test_mcp_stdio_accepts_content_length_framing() -> None:
     _headers, payload = raw.split("\r\n\r\n", 1)
     response = json.loads(payload)
     assert response["result"]["serverInfo"]["name"] == "adaptive-memory-engine"
-    assert response["result"]["serverInfo"]["version"] == "0.1.14"
+    assert response["result"]["serverInfo"]["version"] == "0.1.15"
     assert "Use AME MCP tools before shell commands" in response["result"]["instructions"]
 
 
@@ -200,8 +200,12 @@ def test_bootstrap_mcp_can_load_and_query_without_bound_corpus(tmp_path: Path, m
     tool_names = {tool["name"] for tool in tools["result"]["tools"]}  # type: ignore[index]
     assert "ame_doctor" in tool_names
     assert "ame_flow" in tool_names
+    assert "ame_load_plan" in tool_names
     assert "ame_load" in tool_names
     assert "ame_load_status" in tool_names
+    assert "ame_load_cancel" in tool_names
+    assert "ame_corpus_status" in tool_names
+    assert "ame_cleanup" in tool_names
     assert "memory_search" in tool_names
     assert load and load["result"]["isError"] is False
     assert search and search["result"]["isError"] is False
@@ -240,6 +244,29 @@ def test_bootstrap_mcp_starts_llm_load_as_background_job(tmp_path: Path, monkeyp
     assert '"status": "started"' in text
     assert '"background": true' in text
     assert "ame_load_status" in text
+    assert "load_plan" in text
+
+
+def test_bootstrap_mcp_load_plan_warns_for_large_sources(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    source = tmp_path / "large.md"
+    source.write_text("# Large\n\n" + ("OpenClaw uses LightRAG.\n\n" * 9000), encoding="utf-8")
+    server = McpStdioServer()
+
+    response = server.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "ame_load_plan", "arguments": {"source_path": str(source)}},
+        }
+    )
+
+    assert response and response["result"]["isError"] is False
+    text = response["result"]["content"][0]["text"]
+    assert '"status": "planned"' in text
+    assert '"risk": "high"' in text
+    assert "bronze_chunks" in text
 
 
 def test_bootstrap_mcp_reports_load_job_status(tmp_path: Path, monkeypatch) -> None:
@@ -275,6 +302,98 @@ def test_bootstrap_mcp_reports_load_job_status(tmp_path: Path, monkeypatch) -> N
     text = status["result"]["content"][0]["text"]
     assert '"status": "completed"' in text
     assert "memory_search" in text
+
+
+def test_bootstrap_mcp_reports_running_load_progress(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    from ame.agent.load_jobs import mark_load_progress, write_job
+
+    write_job(
+        {
+            "job_id": "load-project-20260612000000-progress",
+            "kind": "load",
+            "status": "starting",
+            "corpus_id": "project",
+            "source_path": str(tmp_path),
+            "mode": "llm",
+        }
+    )
+    mark_load_progress(
+        "load-project-20260612000000-progress",
+        {"stage": "silver_extraction", "current": 2, "total": 10, "source_id": "a.md"},
+    )
+    server = McpStdioServer()
+
+    status = server.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "ame_load_status",
+                "arguments": {"job_id": "load-project-20260612000000-progress"},
+            },
+        }
+    )
+
+    assert status and status["result"]["isError"] is False
+    text = status["result"]["content"][0]["text"]
+    assert "silver_extraction" in text
+    assert '"current": 2' in text
+
+
+def test_bootstrap_mcp_can_cancel_starting_load_job(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    from ame.agent.load_jobs import write_job
+
+    write_job(
+        {
+            "job_id": "load-project-20260612000000-cancel",
+            "kind": "load",
+            "status": "starting",
+            "corpus_id": "project",
+            "source_path": str(tmp_path),
+            "mode": "llm",
+        }
+    )
+    server = McpStdioServer()
+
+    cancelled = server.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "ame_load_cancel",
+                "arguments": {"job_id": "load-project-20260612000000-cancel"},
+            },
+        }
+    )
+
+    assert cancelled and cancelled["result"]["isError"] is False
+    text = cancelled["result"]["content"][0]["text"]
+    assert '"status": "cancelled"' in text
+
+
+def test_bootstrap_mcp_cleanup_removes_staging_dirs(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    runner = CliRunner()
+    assert runner.invoke(app, ["init"]).exit_code == 0
+    staging = tmp_path / ".ame" / "corpora" / ".project.ingest-test"
+    staging.mkdir(parents=True)
+    server = McpStdioServer()
+
+    response = server.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "ame_cleanup", "arguments": {"corpus_id": "project"}},
+        }
+    )
+
+    assert response and response["result"]["isError"] is False
+    assert not staging.exists()
 
 
 def test_bootstrap_mcp_marks_dead_load_job_as_stale(tmp_path: Path, monkeypatch) -> None:
