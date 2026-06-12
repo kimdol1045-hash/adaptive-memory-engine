@@ -68,10 +68,13 @@ ame connect --client claude
 
 한 번에 길게 요청하기보다, 아래 흐름대로 하나씩 진행하는 것을 권장합니다.
 
-먼저 AME MCP를 사용한다고 명시하고 진행 방식을 확인합니다.
+처음에는 아래 문장을 그대로 입력하는 것이 가장 안전합니다. 이 문장은 에이전트가 shell 명령이나 웹 검색보다 AME MCP 도구를 먼저 쓰도록 유도합니다.
 
 ```text
-AME MCP를 사용해서 단계별로 진행해줘. 먼저 ame_flow를 확인해줘.
+AME MCP를 사용해서 단계별로 진행해줘.
+먼저 ame_flow를 확인하고, 사양 진단은 ame_doctor로 해줘.
+모델 다운로드는 ame_setup execute=false로 계획만 먼저 보여주고,
+내가 승인하기 전에는 execute=true를 실행하지 마.
 ```
 
 그 다음 사양 진단을 요청합니다.
@@ -102,6 +105,79 @@ AME MCP를 사용해서 단계별로 진행해줘. 먼저 ame_flow를 확인해�
 
 ```text
 my-docs 메모리를 기준으로 현재 유효한 결정과 그 근거를 알려줘.
+```
+
+정상 플로우는 다음 순서입니다.
+
+```text
+ame_flow -> ame_doctor -> ame_setup execute=false -> 사용자 승인 -> ame_setup execute=true -> ame_load -> memory_query/memory_search
+```
+
+사양 진단과 모델 추천 단계에서는 corpus가 필요 없습니다. 따라서 `openclaw` 같은 예시 corpus 이름을 임의로 조회하면 잘못된 흐름입니다.
+
+## 4. 단계별 응답 템플릿
+
+AME MCP의 `ame_flow`는 에이전트가 답변에 사용할 템플릿을 제공합니다. 사용자가 직접 템플릿을 보고 싶다면 이렇게 요청하면 됩니다.
+
+```text
+ame_flow에서 model_plan 단계의 output_template을 보여줘.
+```
+
+권장 응답 형태는 다음과 같습니다.
+
+사양 진단:
+
+```text
+사양 진단 결과입니다.
+
+- OS/CPU: ...
+- RAM: ...
+- 사용 가능 디스크: ...
+- AME tier: ...
+
+추천 모델은 다음과 같습니다.
+
+- 추출: ...
+- 검증: ...
+- 종합: ...
+- 임베딩: ...
+
+현재 설치 상태를 보면 ...입니다.
+다음 단계는 ...입니다.
+```
+
+모델 다운로드 계획:
+
+```text
+모델 설치 계획입니다. 아직 다운로드는 실행하지 않았습니다.
+
+필요한 모델:
+...
+
+이 모델들이 필요한 이유:
+- 추출 모델: 문서에서 엔티티, 관계, 결정, 근거를 뽑기 위해 사용합니다.
+- 검증 모델: 추출된 내용을 원문과 대조해 과한 추론을 줄이는 데 사용합니다.
+- 종합 모델: Bronze/Silver 결과를 Gold 메모리로 정리하는 데 사용합니다.
+- 임베딩 모델: 문서 검색과 RAG 검색에 사용합니다.
+
+진행하면 로컬 디스크와 다운로드 시간이 사용됩니다.
+이 계획대로 모델을 설치해도 될까요?
+```
+
+문서 메모리 구축:
+
+```text
+문서 메모리 구축 결과입니다.
+
+- corpus: ...
+- 대상 폴더: ...
+- 구축 방식: Bronze -> Silver -> Gold
+- 처리 문서: ...
+- Gold nodes: ...
+- Gold edges: ...
+- 제외/실패 항목: ...
+
+이제 이 메모리를 기준으로 질문할 수 있습니다.
 ```
 
 ## AME가 제공하는 MCP 도구
@@ -145,6 +221,15 @@ ame> /exit
 가상환경은 패키지를 격리해서 설치하기 위한 용도입니다.
 MCP 설정을 한 번 추가한 뒤에는 Codex/Claude Code가 `ame` 명령을 직접 실행합니다.
 
+예전에 `0.1.0`을 설치한 적이 있으면 `python -m pip install adaptive-memory-engine`이 최신 버전으로 올리지 않고 기존 설치본을 그대로 사용할 수 있습니다. 이 경우에는 업그레이드를 명시합니다.
+
+```bash
+python -m pip install --upgrade adaptive-memory-engine
+python -m pip show adaptive-memory-engine
+```
+
+출력의 `Version`이 현재 README의 버전과 같아야 합니다.
+
 터미널에서 `ame` 명령이 안 보이면 PATH를 다시 적용합니다.
 
 ```bash
@@ -167,6 +252,14 @@ ame connect --client codex --absolute-command
 
 예전 문서의 `memory` 명령과 충돌할 수 있어서, 새 버전에서는 `ame` 명령을 기본으로 사용합니다.
 `memory`는 호환용 alias로 남아 있지만 가능하면 `ame`를 사용하세요.
+
+`ame`가 여전히 보이지 않으면 설치 스크립트로 `~/.ame`에 격리 설치하는 방법이 가장 단순합니다.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kimdol1045-hash/adaptive-memory-engine/main/install.sh | bash
+source ~/.zshrc
+ame --help
+```
 
 ## MCP 모드
 

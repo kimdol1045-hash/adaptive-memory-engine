@@ -75,10 +75,14 @@ built memory.
 
 Use separate steps instead of one long request.
 
-First ask the agent to use AME MCP and follow the AME flow:
+Start with this exact prompt. It nudges the agent to use AME MCP tools before
+shell commands or web search:
 
 ```text
-Use AME MCP and follow the AME flow step by step. Start by checking ame_flow.
+Use AME MCP and follow the AME flow step by step.
+Start by checking ame_flow, and diagnose hardware with ame_doctor.
+For model downloads, first show the plan with ame_setup execute=false.
+Do not run execute=true until I explicitly approve it.
 ```
 
 Then diagnose hardware and model fit:
@@ -109,6 +113,79 @@ After memory is built, ask grounded questions:
 
 ```text
 Using my-docs memory, tell me the current decisions and their rationale.
+```
+
+The expected flow is:
+
+```text
+ame_flow -> ame_doctor -> ame_setup execute=false -> user approval -> ame_setup execute=true -> ame_load -> memory_query/memory_search
+```
+
+Hardware diagnosis and model recommendation do not require a corpus. If an
+agent tries an example corpus such as `openclaw` during setup diagnosis, that is
+the wrong flow.
+
+## 4. Response Templates
+
+AME MCP exposes templates through `ame_flow`. To inspect one:
+
+```text
+Show me the output_template for the model_plan stage from ame_flow.
+```
+
+Recommended diagnosis response:
+
+```text
+Hardware diagnosis result.
+
+- OS/CPU: ...
+- RAM: ...
+- Available disk: ...
+- AME tier: ...
+
+Recommended models:
+
+- Extract: ...
+- Verify: ...
+- Synthesize: ...
+- Embedding: ...
+
+Current install status: ...
+Next step: ...
+```
+
+Recommended model plan response:
+
+```text
+Model installation plan. No downloads have been started yet.
+
+Required models:
+...
+
+Why these models are needed:
+- Extract model: extracts entities, relations, decisions, and rationale.
+- Verify model: checks extracted content against source text.
+- Synthesize model: turns Bronze/Silver outputs into Gold memory.
+- Embedding model: supports document and RAG search.
+
+This will use local disk and download time.
+Should I install these models?
+```
+
+Recommended memory build response:
+
+```text
+Memory build result.
+
+- corpus: ...
+- source folder: ...
+- build path: Bronze -> Silver -> Gold
+- processed documents: ...
+- Gold nodes: ...
+- Gold edges: ...
+- rejected items: ...
+
+You can now ask questions against this memory.
 ```
 
 ## MCP Tools
@@ -155,6 +232,16 @@ ame> /exit
 The virtual environment is only used to isolate the Python package install. Once
 the MCP config is added, Codex or Claude Code launches the `ame` command.
 
+If you previously installed `0.1.0`, `python -m pip install adaptive-memory-engine`
+may keep the old package. Upgrade explicitly:
+
+```bash
+python -m pip install --upgrade adaptive-memory-engine
+python -m pip show adaptive-memory-engine
+```
+
+The printed `Version` should match the current README version.
+
 If `ame` is not on PATH, reload your shell config:
 
 ```bash
@@ -178,6 +265,14 @@ ame connect --client codex --absolute-command
 New versions use `ame` as the recommended command because the older `memory`
 command can collide with previous installs. `memory` remains as a compatibility
 alias, but prefer `ame`.
+
+If `ame` is still unavailable, the simplest path is the isolated installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kimdol1045-hash/adaptive-memory-engine/main/install.sh | bash
+source ~/.zshrc
+ame --help
+```
 
 ## MCP Modes
 
