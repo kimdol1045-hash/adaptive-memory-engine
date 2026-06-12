@@ -11,13 +11,14 @@ Current status: alpha, distributed through TestPyPI. Current beta version: `0.1.
 
 ## 1. Install
 
-No `pipx` required. Copy and run:
+No `pipx` required. Copy and run.
+The virtual environment is only the install location; you do not need to
+activate it every time.
 
 ```bash
 python3 -m venv ~/.ame
-source ~/.ame/bin/activate
 
-python -m pip install \
+~/.ame/bin/python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
   adaptive-memory-engine==0.1.4
@@ -26,25 +27,23 @@ python -m pip install \
 Check the install:
 
 ```bash
-hash -r
-which ame
-ame --help
+~/.ame/bin/ame --help
 ```
 
-`which ame` should point to something like `~/.ame/bin/ame`.
+If `~/.ame/bin/ame --help` works, the install is good.
 
 ## 2. Connect Codex Or Claude Code
 
 Print a Codex MCP config:
 
 ```bash
-ame connect --client codex
+~/.ame/bin/ame connect --client codex
 ```
 
 Print a Claude Code MCP config:
 
 ```bash
-ame connect --client claude
+~/.ame/bin/ame connect --client claude
 ```
 
 Add the printed JSON to the client MCP settings.
@@ -115,13 +114,11 @@ The virtual environment is only used to isolate the Python package install. Once
 the MCP config is added, Codex or Claude Code launches `ame` through the absolute
 path in that config.
 
-If `ame` is not found, reactivate the virtual environment:
+If `ame` is not on PATH, the install can still be valid. Use the absolute path:
 
 ```bash
-source ~/.ame/bin/activate
-hash -r
-which ame
-ame --help
+~/.ame/bin/ame --help
+~/.ame/bin/ame connect --client codex
 ```
 
 New versions use `ame` as the recommended command because the older `memory`

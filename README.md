@@ -12,12 +12,12 @@ Codex나 Claude Code가 그 메모리를 보고 답할 수 있게 해주는 loca
 ## 1. 설치
 
 `pipx`가 없어도 됩니다. 아래를 그대로 실행합니다.
+가상환경은 설치 위치로만 쓰고, 매번 활성화하지 않습니다.
 
 ```bash
 python3 -m venv ~/.ame
-source ~/.ame/bin/activate
 
-python -m pip install \
+~/.ame/bin/python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
   adaptive-memory-engine==0.1.4
@@ -26,25 +26,23 @@ python -m pip install \
 설치 확인:
 
 ```bash
-hash -r
-which ame
-ame --help
+~/.ame/bin/ame --help
 ```
 
-`which ame` 결과가 `~/.ame/bin/ame`처럼 나오면 정상입니다.
+`~/.ame/bin/ame --help`가 보이면 정상입니다.
 
 ## 2. Codex 또는 Claude Code에 연결
 
 Codex용 MCP 설정을 출력합니다.
 
 ```bash
-ame connect --client codex
+~/.ame/bin/ame connect --client codex
 ```
 
 Claude Code용 MCP 설정은 다음과 같습니다.
 
 ```bash
-ame connect --client claude
+~/.ame/bin/ame connect --client claude
 ```
 
 출력된 JSON을 Codex 또는 Claude Code의 MCP 설정에 추가합니다.
@@ -111,13 +109,11 @@ ame> /exit
 가상환경은 패키지를 격리해서 설치하기 위한 용도입니다.
 MCP 설정을 한 번 추가한 뒤에는 Codex/Claude Code가 설정에 들어간 절대경로로 `ame`를 직접 실행합니다.
 
-`ame` 명령이 안 보이면 가상환경을 다시 활성화합니다.
+터미널에서 `ame` 명령이 안 보여도 `~/.ame/bin/ame`가 실행되면 설치는 정상입니다.
 
 ```bash
-source ~/.ame/bin/activate
-hash -r
-which ame
-ame --help
+~/.ame/bin/ame --help
+~/.ame/bin/ame connect --client codex
 ```
 
 예전 문서의 `memory` 명령과 충돌할 수 있어서, 새 버전에서는 `ame` 명령을 기본으로 사용합니다.
