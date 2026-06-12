@@ -7,7 +7,7 @@ Codex나 Claude Code가 그 메모리를 보고 답할 수 있게 해주는 loca
 
 사용자가 매번 긴 명령어를 치는 방식보다, **Codex/Claude Code에 AME를 연결하고 자연어로 맡기는 방식**을 우선합니다.
 
-현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.16`입니다.
+현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.17`입니다.
 
 ## 1. 설치
 
@@ -53,11 +53,21 @@ ame connect --client codex
 ame connect --client codex --print-only
 ```
 
-Claude Code를 쓴다면 다음 명령으로 MCP 설정 JSON을 출력한 뒤 Claude Code 설정에 붙입니다.
+Claude Code도 아래 명령 하나로 사용자 범위 MCP 설정에 AME가 등록됩니다. 내부적으로 Claude Code 공식 명령인 `claude mcp add --scope user --transport stdio ...`를 실행합니다.
 
 ```bash
 ame connect --client claude
 ```
+
+그 다음 Claude Code를 다시 시작하고 `/mcp`에서 `adaptive-memory-engine`이 연결됐는지 확인합니다.
+
+설정을 파일에 쓰지 않고 확인만 하고 싶다면 다음처럼 실행합니다.
+
+```bash
+ame connect --client claude --print-only
+```
+
+`ame connect --client claude`는 JSON을 출력만 하는 명령이 아닙니다. Claude Code CLI가 설치되어 있고 `claude` 명령이 PATH에 있으면 MCP 등록까지 수행합니다. Claude Code CLI를 찾지 못하면 직접 실행할 등록 명령을 출력합니다.
 
 기본 `command`는 절대경로가 아니라 `ame`입니다.
 
@@ -330,7 +340,7 @@ ame mcp stdio
 ame mcp stdio my-docs
 ```
 
-대부분의 사용자는 직접 `ame mcp stdio`를 실행하지 않고, `ame connect --client codex` 또는 `ame connect --client claude`로 출력된 설정을 클라이언트에 넣으면 됩니다.
+대부분의 사용자는 직접 `ame mcp stdio`를 실행하지 않습니다. `ame connect --client codex` 또는 `ame connect --client claude`를 실행하면 AME가 MCP 설정 등록을 처리합니다.
 
 ## Bronze/Silver/Gold 구조
 

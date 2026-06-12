@@ -27,7 +27,7 @@ from ame.silver.store import SilverStore
 from ame.storage.lightrag_adapter import LightRagAdapter
 
 
-SERVER_VERSION = "0.1.16"
+SERVER_VERSION = "0.1.17"
 
 MCP_INSTRUCTIONS = "\n".join(
     [

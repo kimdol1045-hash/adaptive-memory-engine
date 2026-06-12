@@ -151,7 +151,7 @@ def test_mcp_stdio_accepts_content_length_framing() -> None:
     _headers, payload = raw.split("\r\n\r\n", 1)
     response = json.loads(payload)
     assert response["result"]["serverInfo"]["name"] == "adaptive-memory-engine"
-    assert response["result"]["serverInfo"]["version"] == "0.1.16"
+    assert response["result"]["serverInfo"]["version"] == "0.1.17"
     assert "Use AME MCP tools before shell commands" in response["result"]["instructions"]
 
 
@@ -533,3 +533,58 @@ def test_connect_can_print_absolute_command_when_requested(tmp_path: Path, monke
     assert result.exit_code == 0
     config_text = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
     assert 'command = "/tmp/ame/bin/ame"' in config_text
+
+
+def test_connect_registers_claude_mcp_with_claude_cli(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    class Completed:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return Completed()
+
+    monkeypatch.delenv("AME_HOME", raising=False)
+    monkeypatch.setattr("ame.cli.main.shutil.which", lambda command: "/usr/local/bin/claude" if command == "claude" else None)
+    monkeypatch.setattr("ame.cli.main.subprocess.run", fake_run)
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["connect", "--client", "claude"])
+
+    assert result.exit_code == 0
+    assert calls[0] == ["claude", "mcp", "remove", "adaptive-memory-engine"]
+    assert calls[1] == [
+        "claude",
+        "mcp",
+        "add",
+        "--scope",
+        "user",
+        "--transport",
+        "stdio",
+        "adaptive-memory-engine",
+        "--",
+        "ame",
+        "mcp",
+        "stdio",
+    ]
+    assert "Claude Code MCP config updated: adaptive-memory-engine" in result.output
+
+
+def test_connect_can_print_claude_mcp_command_without_registering(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    monkeypatch.setenv("AME_HOME", "/tmp/ame-home")
+    monkeypatch.setattr("ame.cli.main.subprocess.run", lambda command, **kwargs: calls.append(command))
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["connect", "--client", "claude", "--print-only"])
+
+    assert result.exit_code == 0
+    assert calls == []
+    assert "claude mcp add" in result.output
+    assert "--env AME_HOME=" in result.output
+    assert "ame-home" in result.output
+    assert '"command": "ame"' in result.output

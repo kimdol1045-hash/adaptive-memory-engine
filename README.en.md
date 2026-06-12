@@ -7,7 +7,7 @@ The preferred UX is agent-first: connect AME through MCP, then ask Codex or
 Claude Code to diagnose hardware, recommend models, build memory, and answer
 questions in natural language.
 
-Current status: alpha, distributed through PyPI. Current version: `0.1.16`.
+Current status: alpha, distributed through PyPI. Current version: `0.1.17`.
 
 ## 1. Install
 
@@ -57,11 +57,26 @@ To preview the Codex MCP config without writing it:
 ame connect --client codex --print-only
 ```
 
-For Claude Code, print the MCP JSON and paste it into the Claude Code settings:
+For Claude Code, one command registers AME in the user-scope MCP settings. Under
+the hood it runs Claude Code's official `claude mcp add --scope user
+--transport stdio ...` command:
 
 ```bash
 ame connect --client claude
 ```
+
+Restart Claude Code after running it, then check `/mcp` for
+`adaptive-memory-engine`.
+
+To preview the registration command and JSON without writing Claude Code config:
+
+```bash
+ame connect --client claude --print-only
+```
+
+`ame connect --client claude` does not only print JSON. If the Claude Code CLI is
+installed and `claude` is on PATH, it registers the MCP server automatically. If
+the CLI cannot be found, AME prints the command you can run manually.
 
 By default, the `command` field is `ame`, not an absolute executable path.
 
@@ -347,7 +362,7 @@ ame mcp stdio my-docs
 ```
 
 Most users do not need to run these manually. Use `ame connect --client codex`
-or `ame connect --client claude` and paste the printed config into the client.
+or `ame connect --client claude`; AME handles MCP registration for you.
 
 ## Bronze/Silver/Gold
 

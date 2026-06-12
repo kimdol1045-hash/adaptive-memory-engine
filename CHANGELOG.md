@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.17 - 2026-06-12
+
+- Changed `ame connect --client claude` to register AME through `claude mcp add --scope user --transport stdio` instead of only printing JSON.
+- Added `ame connect --client claude --print-only` guidance for previewing the Claude MCP command and fallback JSON without modifying Claude Code config.
+- Updated Korean and English README MCP connection docs so Claude Code users do not need to manually paste JSON.
+
 ## 0.1.16 - 2026-06-12
 
 - Add automatic corpus suggestion and `ame_load_auto` so users can provide only a source path while AME decides whether to update an existing corpus or create a new one.

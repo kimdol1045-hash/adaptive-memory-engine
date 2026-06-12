@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shlex
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Literal
@@ -320,8 +322,13 @@ def connect(
         payload = server
         typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
-        payload = {"mcpServers": {name: server}}
-        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+        if print_only:
+            typer.echo(_format_command(_claude_mcp_add_command(name, server)))
+            typer.echo(json.dumps({"mcpServers": {name: server}}, ensure_ascii=False, indent=2))
+            return
+        _register_claude_mcp(name, server)
+        typer.echo("Claude Code MCP config updated: adaptive-memory-engine")
+        typer.echo("Restart Claude Code, then run /mcp to confirm AME is connected.")
 
 
 @app.command()
@@ -963,6 +970,41 @@ def _ame_bin_dir() -> Path | None:
     if found:
         return Path(found).expanduser().resolve().parent
     return None
+
+
+def _claude_mcp_add_command(name: str, server: dict[str, object]) -> list[str]:
+    command = str(server["command"])
+    args = [str(arg) for arg in server.get("args", [])]
+    cmd = ["claude", "mcp", "add"]
+    env = server.get("env")
+    if isinstance(env, dict):
+        for key, value in sorted(env.items()):
+            cmd.extend(["--env", f"{key}={value}"])
+    cmd.extend(["--scope", "user", "--transport", "stdio", name, "--", command, *args])
+    return cmd
+
+
+def _register_claude_mcp(name: str, server: dict[str, object]) -> None:
+    add_cmd = _claude_mcp_add_command(name, server)
+    if shutil.which("claude") is None:
+        typer.echo("Claude Code CLI was not found on PATH.", err=True)
+        typer.echo("Run this command after installing Claude Code:", err=True)
+        typer.echo(_format_command(add_cmd), err=True)
+        raise typer.Exit(1)
+
+    subprocess.run(["claude", "mcp", "remove", name], capture_output=True, text=True)
+    result = subprocess.run(add_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        message = (result.stderr or result.stdout).strip()
+        if message:
+            typer.echo(message, err=True)
+        typer.echo("Claude Code MCP registration failed. You can run this command manually:", err=True)
+        typer.echo(_format_command(add_cmd), err=True)
+        raise typer.Exit(result.returncode)
+
+
+def _format_command(command: list[str]) -> str:
+    return " ".join(shlex.quote(part) for part in command)
 
 
 def _codex_mcp_toml(name: str, server: dict[str, object]) -> str:
