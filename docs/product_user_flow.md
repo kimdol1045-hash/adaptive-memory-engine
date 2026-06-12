@@ -8,13 +8,13 @@
 
 1. 사용자가 Claude Code나 Codex를 터미널에서 엽니다.
 2. Adaptive Memory Engine을 설치합니다.
-3. `memory doctor`로 컴퓨터 사양을 진단합니다.
-4. `memory setup`으로 사양에 맞는 로컬 LLM과 embedding model을 추천받습니다.
-5. `memory setup --execute`로 Ollama 모델을 다운로드합니다.
-6. `memory load <corpus> <docs>`로 문서 폴더를 읽힙니다.
+3. `ame doctor` 또는 AME MCP `ame_doctor`로 컴퓨터 사양을 진단합니다.
+4. `ame setup` 또는 AME MCP `ame_setup`으로 사양에 맞는 로컬 LLM과 embedding model을 추천받습니다.
+5. 사용자 승인 후 `ame setup --execute` 또는 AME MCP `ame_setup(execute=true)`로 Ollama 모델을 다운로드합니다.
+6. `ame load <corpus> <docs>` 또는 AME MCP `ame_load`로 문서 폴더를 읽힙니다.
 7. 엔진이 `$AME_HOME/corpora/<corpus>` 아래에 corpus 폴더를 만들고 Bronze/Silver/Gold memory를 구축합니다.
-8. `memory connect <corpus> --client codex` 또는 `--client claude`로 MCP 연결 설정을 출력합니다.
-9. Claude Code나 Codex가 `memory mcp stdio <corpus>`를 MCP server로 실행합니다.
+8. `ame connect <corpus> --client codex` 또는 `--client claude`로 MCP 연결 설정을 출력합니다.
+9. Claude Code나 Codex가 `ame mcp stdio <corpus>`를 MCP server로 실행합니다.
 10. 사용자가 질문하면 Claude Code나 Codex는 구축된 local RAG memory pool에서 `memory_search`, `memory_retrieve`, `memory_graph`, `memory_decisions` 같은 tool을 호출해 답변합니다.
 
 ## 사용자가 실행하는 명령
@@ -23,23 +23,23 @@
 pip install adaptive-memory-engine
 export AME_HOME="$PWD/.ame"
 
-memory doctor
-memory setup
-memory setup --execute
+ame doctor
+ame setup
+ame setup --execute
 
-memory load my-docs ./docs
-memory connect my-docs --client codex
+ame load my-docs ./docs
+ame connect my-docs --client codex
 ```
 
 Windows PowerShell에서는 환경변수를 다음처럼 설정합니다.
 
 ```powershell
 $env:AME_HOME = "$PWD\.ame"
-memory doctor
-memory setup
-memory setup --execute
-memory load my-docs .\docs
-memory connect my-docs --client codex
+ame doctor
+ame setup
+ame setup --execute
+ame load my-docs .\docs
+ame connect my-docs --client codex
 ```
 
 `AME_HOME`을 지정하지 않으면 기본 runtime 위치는 OS별로 달라집니다.
@@ -54,7 +54,7 @@ Claude Code나 Codex에 등록되는 MCP server command는 다음 형태입니�
 {
   "mcpServers": {
     "adaptive-memory-engine": {
-      "command": "memory",
+      "command": "ame",
       "args": ["mcp", "stdio", "my-docs"],
       "env": {
         "AME_HOME": "/absolute/path/to/.ame"
@@ -107,7 +107,7 @@ Codex / Claude Code
 
 ## Fallback
 
-`memory load --mode deterministic`은 기본 제품 흐름이 아닙니다.
+`ame load --mode deterministic`은 기본 제품 흐름이 아닙니다.
 
 이 모드는 다음 상황에서만 사용합니다.
 
@@ -116,4 +116,4 @@ Codex / Claude Code
 - 로컬 LLM 설치 전 smoke check
 - 저사양 환경에서 최소 기능 확인
 
-정식 사용자 경험은 `memory setup --execute` 이후 `memory load`를 실행하는 local-LLM first 흐름입니다.
+정식 사용자 경험은 `ame setup --execute` 이후 `ame load`를 실행하는 local-LLM first 흐름입니다.

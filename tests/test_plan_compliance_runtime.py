@@ -1,3 +1,5 @@
+import io
+import json
 from pathlib import Path
 import stat
 
@@ -104,9 +106,37 @@ def test_mcp_stdio_server_lists_and_calls_tools(tmp_path: Path, monkeypatch) -> 
     )
 
     assert initialized and initialized["result"]["capabilities"]["tools"] == {}
+    assert "Use AME MCP tools before shell commands" in initialized["result"]["instructions"]
     assert tools and any(tool["name"] == "memory_search" for tool in tools["result"]["tools"])
     assert call and call["result"]["isError"] is False
     assert "LightRAG" in call["result"]["content"][0]["text"]
+
+
+def test_mcp_stdio_accepts_content_length_framing() -> None:
+    server = McpStdioServer()
+    body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}, separators=(",", ":"))
+    stdin = io.StringIO(f"Content-Length: {len(body.encode('utf-8'))}\r\n\r\n{body}")
+    stdout = io.StringIO()
+
+    server.run(stdin, stdout)
+
+    raw = stdout.getvalue()
+    assert raw.startswith("Content-Length: ")
+    _headers, payload = raw.split("\r\n\r\n", 1)
+    response = json.loads(payload)
+    assert response["result"]["serverInfo"]["name"] == "adaptive-memory-engine"
+    assert response["result"]["serverInfo"]["version"] == "0.1.8"
+    assert "Use AME MCP tools before shell commands" in response["result"]["instructions"]
+
+
+def test_mcp_exposes_ame_setup_prompt() -> None:
+    server = McpStdioServer()
+
+    prompts = server.handle({"jsonrpc": "2.0", "id": 1, "method": "prompts/list", "params": {}})
+    prompt = server.handle({"jsonrpc": "2.0", "id": 2, "method": "prompts/get", "params": {"name": "ame_setup_flow"}})
+
+    assert prompts and prompts["result"]["prompts"][0]["name"] == "ame_setup_flow"
+    assert prompt and "AME MCP를 사용해서" in prompt["result"]["messages"][0]["content"]["text"]
 
 
 def test_bootstrap_mcp_can_load_and_query_without_bound_corpus(tmp_path: Path, monkeypatch) -> None:

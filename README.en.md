@@ -7,7 +7,7 @@ The preferred UX is agent-first: connect AME through MCP, then ask Codex or
 Claude Code to diagnose hardware, recommend models, build memory, and answer
 questions in natural language.
 
-Current status: alpha, distributed through PyPI. Current version: `0.1.7`.
+Current status: alpha, distributed through PyPI. Current version: `0.1.8`.
 
 ## 1. Install
 
@@ -75,10 +75,10 @@ built memory.
 
 Use separate steps instead of one long request.
 
-First ask the agent to follow the AME flow:
+First ask the agent to use AME MCP and follow the AME flow:
 
 ```text
-Follow the AME flow step by step.
+Use AME MCP and follow the AME flow step by step. Start by checking ame_flow.
 ```
 
 Then diagnose hardware and model fit:
@@ -125,6 +125,10 @@ AME exposes these tools to Codex or Claude Code:
 
 Model downloads can take time and disk space. The agent should show the plan
 first, then run downloads after user approval.
+
+Hardware diagnosis and model recommendations should use bootstrap MCP because
+they do not require a corpus. Agents should not invent example corpus IDs such
+as `openclaw` unless the user explicitly provided that corpus.
 
 ## Manual CLI Use
 
@@ -191,6 +195,9 @@ ame mcp stdio my-docs
 
 Most users do not need to run these manually. Use `ame connect --client codex`
 or `ame connect --client claude` and paste the printed config into the client.
+
+`ame mcp stdio` supports both standard MCP `Content-Length` framing and newline
+JSON-RPC.
 
 ## Bronze/Silver/Gold
 

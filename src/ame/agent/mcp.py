@@ -19,7 +19,18 @@ from ame.models.router import ModelRouter
 from ame.pipeline import MemoryPipeline
 
 
-SERVER_VERSION = "0.1.7"
+SERVER_VERSION = "0.1.8"
+
+MCP_INSTRUCTIONS = "\n".join(
+    [
+        "Use AME MCP tools before shell commands when the user asks about AME setup, AME local model recommendations, local document memory, local RAG, or Bronze/Silver/Gold memory.",
+        "Start AME setup conversations with ame_flow, then use ame_doctor for hardware/model diagnosis.",
+        "Use ame_setup with execute=false to show a model download plan. Use execute=true only after explicit user approval.",
+        "Use bootstrap MCP for hardware/model diagnosis; do not call corpus-bound tools or example corpus IDs for setup diagnosis.",
+        "Do not invent or try sample corpus names such as openclaw unless the user explicitly provided that corpus.",
+        "When replying in Korean, use polite '~입니다' and '~습니다' style and handle one flow stage at a time.",
+    ]
+)
 
 
 class McpToolSpec(BaseModel):
@@ -371,11 +382,111 @@ class McpStdioServer:
     def run(self, stdin: TextIO | None = None, stdout: TextIO | None = None) -> None:
         stdin = stdin or sys.stdin
         stdout = stdout or sys.stdout
+        if hasattr(stdin, "buffer") and hasattr(stdout, "buffer"):
+            self._run_binary(stdin.buffer, stdout.buffer)
+            return
+        self._run_text(stdin, stdout)
+
+    def _run_text(self, stdin: TextIO, stdout: TextIO) -> None:
+        while not self.should_stop:
+            line = stdin.readline()
+            if line == "":
+                break
+            if not line.strip():
+                continue
+            framed = line.casefold().startswith("content-length:")
+            try:
+                body = self._read_framed_text(line, stdin) if framed else line
+                response = self.handle_line(body)
+            except ValueError as exc:
+                response = self._error(None, -32700, str(exc))
+            self._write_text_response(stdout, response, framed=framed)
+
+    def _run_binary(self, stdin: Any, stdout: Any) -> None:
+        while not self.should_stop:
+            line = stdin.readline()
+            if line == b"":
+                break
+            if not line.strip():
+                continue
+            framed = line.lower().startswith(b"content-length:")
+            try:
+                body = self._read_framed_binary(line, stdin).decode("utf-8") if framed else line.decode("utf-8")
+                response = self.handle_line(body)
+            except (UnicodeDecodeError, ValueError) as exc:
+                response = self._error(None, -32700, str(exc))
+            self._write_binary_response(stdout, response, framed=framed)
+
+    def _read_framed_text(self, first_header: str, stdin: TextIO) -> str:
+        length = self._content_length_from_header(first_header)
+        while True:
+            line = stdin.readline()
+            if line == "":
+                raise ValueError("Unexpected EOF while reading MCP headers")
+            if line in {"\n", "\r\n"}:
+                break
+            length = self._content_length_from_header(line, current=length)
+        body = stdin.read(length)
+        if len(body) != length:
+            raise ValueError("Unexpected EOF while reading MCP body")
+        return body
+
+    def _read_framed_binary(self, first_header: bytes, stdin: Any) -> bytes:
+        length = self._content_length_from_header(first_header.decode("ascii", errors="replace"))
+        while True:
+            line = stdin.readline()
+            if line == b"":
+                raise ValueError("Unexpected EOF while reading MCP headers")
+            if line in {b"\n", b"\r\n"}:
+                break
+            length = self._content_length_from_header(line.decode("ascii", errors="replace"), current=length)
+        body = stdin.read(length)
+        if len(body) != length:
+            raise ValueError("Unexpected EOF while reading MCP body")
+        return body
+
+    def _content_length_from_header(self, header: str, *, current: int | None = None) -> int:
+        name, sep, value = header.partition(":")
+        if not sep:
+            return current if current is not None else self._raise_header_error("Invalid MCP header")
+        if name.strip().casefold() != "content-length":
+            return current if current is not None else self._raise_header_error("MCP Content-Length header is required")
+        try:
+            length = int(value.strip())
+        except ValueError as exc:
+            raise ValueError("Invalid MCP Content-Length value") from exc
+        if length < 0:
+            raise ValueError("Invalid MCP Content-Length value")
+        return length
+
+    def _raise_header_error(self, message: str) -> int:
+        raise ValueError(message)
+
+    def _write_text_response(self, stdout: TextIO, response: dict[str, Any] | list[dict[str, Any]] | None, *, framed: bool) -> None:
+        if response is None:
+            return
+        payload = json.dumps(response, ensure_ascii=False, separators=(",", ":"), default=str)
+        if framed:
+            length = len(payload.encode("utf-8"))
+            stdout.write(f"Content-Length: {length}\r\n\r\n{payload}")
+        else:
+            stdout.write(payload + "\n")
+        stdout.flush()
+
+    def _write_binary_response(self, stdout: Any, response: dict[str, Any] | list[dict[str, Any]] | None, *, framed: bool) -> None:
+        if response is None:
+            return
+        payload = json.dumps(response, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8")
+        if framed:
+            stdout.write(f"Content-Length: {len(payload)}\r\n\r\n".encode("ascii") + payload)
+        else:
+            stdout.write(payload + b"\n")
+        stdout.flush()
+
+    def run_lines(self, stdin: TextIO, stdout: TextIO) -> None:
         for line in stdin:
             response = self.handle_line(line)
-            if response is not None:
-                stdout.write(json.dumps(response, ensure_ascii=False, separators=(",", ":"), default=str) + "\n")
-                stdout.flush()
+            self._write_text_response(stdout, response, framed=False)
             if self.should_stop:
                 break
 
@@ -424,6 +535,7 @@ class McpStdioServer:
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": "adaptive-memory-engine", "version": SERVER_VERSION},
+                "instructions": MCP_INSTRUCTIONS,
             }
         if method == "ping":
             return {}
@@ -434,11 +546,38 @@ class McpStdioServer:
         if method == "resources/list":
             return {"resources": []}
         if method == "prompts/list":
-            return {"prompts": []}
+            return {
+                "prompts": [
+                    {
+                        "name": "ame_setup_flow",
+                        "description": "Guide the user through AME setup using AME MCP tools first.",
+                        "arguments": [],
+                    }
+                ]
+            }
+        if method == "prompts/get":
+            return self._get_prompt(params)
         if method == "shutdown":
             self.should_stop = True
             return None
         raise ValueError(f"Unsupported MCP method: {method}")
+
+    def _get_prompt(self, params: dict[str, Any]) -> dict[str, Any]:
+        name = params.get("name")
+        if name != "ame_setup_flow":
+            raise ValueError("Unknown prompt")
+        return {
+            "description": "AME setup flow",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": {
+                        "type": "text",
+                        "text": "AME MCP를 사용해서 단계별로 진행해줘. 먼저 ame_flow를 확인하고, 사양 진단은 ame_doctor로 해줘. 모델 다운로드는 계획만 먼저 보여주고 승인 전에는 실행하지 마.",
+                    },
+                }
+            ],
+        }
 
     def _call_tool(self, params: dict[str, Any]) -> dict[str, Any]:
         name = params.get("name")
@@ -665,6 +804,8 @@ def _ame_flow(*, stage: str = "all") -> dict[str, Any]:
             "여러 단계를 한 답변에 합치지 말고 한 번에 한 단계만 처리합니다.",
             "한국어 사용자에게는 '~입니다', '~습니다'의 존댓말을 사용합니다.",
             "모델 다운로드 전에는 반드시 계획을 먼저 보여주고 명시적 승인을 받습니다.",
+            "AME 설정, 모델 추천, 로컬 문서 메모리 요청은 shell이나 웹 검색보다 AME MCP 도구를 먼저 사용합니다.",
+            "사양/모델 진단은 corpus가 필요 없는 bootstrap MCP로 처리하고, openclaw 같은 예시 corpus 이름을 임의로 사용하지 않습니다.",
             "넓은 설명보다 지금 해야 할 다음 행동을 구체적으로 제시합니다.",
             "채팅에서 읽을 수 있게 짧게 답하되, 다음 분기를 바꾸는 도구 결과는 포함합니다.",
         ],

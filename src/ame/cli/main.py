@@ -132,7 +132,7 @@ def setup(
     typer.echo(f"Embedding model: {plan.models.embed.model}")
 
     if not profile.ollama_installed:
-        typer.echo("Ollama is not installed. Install Ollama first, then run `memory setup --execute`.")
+        typer.echo("Ollama is not installed. Install Ollama first, then run `ame setup --execute`.")
         raise typer.Exit(1)
 
     if not install_plan.missing_models:
@@ -143,7 +143,7 @@ def setup(
         typer.echo("Recommended model pull commands:")
         for command in install_plan.pull_commands:
             typer.echo(" ".join(command))
-        typer.echo("Run `memory setup --execute` to pull them.")
+        typer.echo("Run `ame setup --execute` to pull them.")
         return
 
     results = installer.pull(install_plan.missing_models, execute=True, installed=install_plan.installed_models)

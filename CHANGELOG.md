@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8 - 2026-06-12
+
+- Added standard MCP `Content-Length` stdio framing support while keeping newline JSON-RPC compatibility.
+- Added MCP initialize instructions and an `ame_setup_flow` prompt so agents prefer AME MCP tools for AME setup/model/local-memory requests.
+- Documented that setup diagnosis should use bootstrap MCP and must not invent example corpus IDs such as `openclaw`.
+- Updated package `ame.__version__` to match the published package version.
+
 ## 0.1.7 - 2026-06-12
 
 - Added the `ame_flow` MCP tool with stage-by-stage setup branches and response templates.

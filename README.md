@@ -7,7 +7,7 @@ Codex나 Claude Code가 그 메모리를 보고 답할 수 있게 해주는 loca
 
 사용자가 매번 긴 명령어를 치는 방식보다, **Codex/Claude Code에 AME를 연결하고 자연어로 맡기는 방식**을 우선합니다.
 
-현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.7`입니다.
+현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.8`입니다.
 
 ## 1. 설치
 
@@ -68,10 +68,10 @@ ame connect --client claude
 
 한 번에 길게 요청하기보다, 아래 흐름대로 하나씩 진행하는 것을 권장합니다.
 
-먼저 AME 진행 방식을 확인합니다.
+먼저 AME MCP를 사용한다고 명시하고 진행 방식을 확인합니다.
 
 ```text
-AME 플로우대로 단계별로 진행해줘.
+AME MCP를 사용해서 단계별로 진행해줘. 먼저 ame_flow를 확인해줘.
 ```
 
 그 다음 사양 진단을 요청합니다.
@@ -117,6 +117,8 @@ Codex/Claude Code는 AME MCP를 통해 다음 도구를 사용할 수 있습니�
 - `memory_graph`, `memory_decisions`, `memory_timeline`, `memory_why`: 구조화된 메모리 조회
 
 모델 다운로드는 시간과 디스크를 사용합니다. Codex/Claude Code가 먼저 다운로드 계획을 보여준 뒤, 사용자가 승인하면 실행하는 흐름을 권장합니다.
+
+사양 진단이나 모델 추천은 corpus가 필요 없는 bootstrap MCP에서 처리합니다. 사용자가 직접 만든 corpus가 아니라면 `openclaw` 같은 예시 corpus 이름을 임의로 사용하지 않아야 합니다.
 
 ## CLI로 직접 쓰고 싶을 때
 
@@ -183,6 +185,8 @@ ame mcp stdio my-docs
 ```
 
 대부분의 사용자는 직접 `ame mcp stdio`를 실행하지 않고, `ame connect --client codex` 또는 `ame connect --client claude`로 출력된 설정을 클라이언트에 넣으면 됩니다.
+
+`ame mcp stdio`는 표준 MCP `Content-Length` 프레이밍과 newline JSON-RPC를 모두 지원합니다.
 
 ## Bronze/Silver/Gold 구조
 
