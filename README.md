@@ -7,46 +7,51 @@ Codex나 Claude Code가 그 메모리를 보고 답할 수 있게 해주는 loca
 
 사용자가 매번 긴 명령어를 치는 방식보다, **Codex/Claude Code에 AME를 연결하고 자연어로 맡기는 방식**을 우선합니다.
 
-현재는 alpha 단계이며 TestPyPI로 베타 배포 중입니다. 현재 베타 버전은 `0.1.5`입니다.
+현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.6`입니다.
 
 ## 1. 설치
 
-`pipx`가 없어도 됩니다. 아래를 그대로 실행합니다.
-가상환경은 실행 모드가 아니라 AME를 담아두는 설치 폴더로만 씁니다.
+macOS/Linux:
 
 ```bash
-python3 -m venv ~/.ame
-
-~/.ame/bin/python -m pip install \
-  --index-url https://test.pypi.org/simple/ \
-  --extra-index-url https://pypi.org/simple/ \
-  adaptive-memory-engine==0.1.5
-
-echo 'export PATH="$HOME/.ame/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
-ame --help
+curl -fsSL https://raw.githubusercontent.com/kimdol1045-hash/adaptive-memory-engine/main/install.sh | bash
 ```
 
-`ame --help`가 보이면 정상입니다.
+Windows PowerShell:
 
-커스텀 MCP로만 쓸 때도 AME 실행 파일은 로컬에 있어야 합니다. TestPyPI/GitHub는 설치 파일을 배포하는 곳이고, MCP 클라이언트는 로컬에서 `ame mcp stdio` 프로세스를 실행합니다.
+```powershell
+irm https://raw.githubusercontent.com/kimdol1045-hash/adaptive-memory-engine/main/install.ps1 | iex
+```
+
+설치 스크립트는 `~/.ame`에 AME를 설치하고 `ame` 명령을 PATH에 추가합니다. macOS/Linux에서는 설치 직후 스크립트가 출력하는 `source ...` 명령을 현재 터미널에 한 번 실행하면 됩니다.
+
+```bash
+source ~/.zshrc
+```
+
+직접 설치하고 싶다면 PyPI에서 설치할 수 있습니다.
+
+```bash
+python -m pip install adaptive-memory-engine
+```
+
+커스텀 MCP로만 쓸 때도 AME 실행 파일은 로컬에 있어야 합니다. PyPI/GitHub는 설치 파일을 배포하는 곳이고, MCP 클라이언트는 로컬에서 `ame mcp stdio` 프로세스를 실행합니다.
 
 ## 2. Codex 또는 Claude Code에 연결
 
-Codex용 MCP 설정을 출력합니다.
+Codex용 MCP 설정을 출력해서 Codex의 커스텀 MCP 설정에 붙입니다.
 
 ```bash
 ame connect --client codex
 ```
 
-Claude Code용 MCP 설정은 다음과 같습니다.
+Claude Code를 쓴다면 다음 명령을 사용합니다.
 
 ```bash
 ame connect --client claude
 ```
 
-출력된 JSON을 Codex 또는 Claude Code의 MCP 설정에 추가합니다.
-기본 JSON의 `command`는 절대경로가 아니라 `ame`입니다.
+출력된 JSON의 기본 `command`는 절대경로가 아니라 `ame`입니다.
 
 ```json
 {
@@ -55,7 +60,7 @@ ame connect --client claude
 }
 ```
 
-기본 설정에는 실행 파일 절대경로를 넣지 않습니다. `AME_HOME`을 따로 지정한 경우에만 메모리 데이터 폴더가 `env`에 들어갑니다. MCP 클라이언트가 실행될 때마다 가상환경을 직접 활성화할 필요는 없습니다.
+기본 설정에는 실행 파일 절대경로를 넣지 않습니다. MCP 클라이언트가 실행될 때마다 가상환경을 직접 활성화할 필요도 없습니다.
 
 이때 아직 문서 메모리를 만들지 않았어도 괜찮습니다. `ame connect --client ...`는 bootstrap MCP 설정을 출력하므로, Codex/Claude Code가 사양 진단부터 메모리 구축까지 진행할 수 있습니다.
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6 - 2026-06-12
+
+- Switched public install docs from TestPyPI to PyPI.
+- Added macOS/Linux and Windows installer scripts for one-command local setup.
+- Simplified README around the agent-first MCP flow: install once, connect once, then use Codex/Claude Code in natural language.
+
 ## 0.1.5 - 2026-06-12
 
 - Changed MCP config output to use `command: "ame"` by default.

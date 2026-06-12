@@ -7,48 +7,54 @@ The preferred UX is agent-first: connect AME through MCP, then ask Codex or
 Claude Code to diagnose hardware, recommend models, build memory, and answer
 questions in natural language.
 
-Current status: alpha, distributed through TestPyPI. Current beta version: `0.1.5`.
+Current status: alpha, distributed through PyPI. Current version: `0.1.6`.
 
 ## 1. Install
 
-No `pipx` required. Copy and run.
-The virtual environment is only the install folder for AME; you do not need to
-activate it every time.
+macOS/Linux:
 
 ```bash
-python3 -m venv ~/.ame
-
-~/.ame/bin/python -m pip install \
-  --index-url https://test.pypi.org/simple/ \
-  --extra-index-url https://pypi.org/simple/ \
-  adaptive-memory-engine==0.1.5
-
-echo 'export PATH="$HOME/.ame/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
-ame --help
+curl -fsSL https://raw.githubusercontent.com/kimdol1045-hash/adaptive-memory-engine/main/install.sh | bash
 ```
 
-If `ame --help` works, the install is good.
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/kimdol1045-hash/adaptive-memory-engine/main/install.ps1 | iex
+```
+
+The installer puts AME in `~/.ame` and adds `ame` to PATH. On macOS/Linux, run
+the printed `source ...` command once in the current terminal after
+installation:
+
+```bash
+source ~/.zshrc
+```
+
+Manual PyPI install is also available:
+
+```bash
+python -m pip install adaptive-memory-engine
+```
 
 Even when you only use custom MCP, the AME executable still needs to exist
-locally. TestPyPI/GitHub distributes the package; the MCP client starts a local
-`ame mcp stdio` process so AME can read local documents and use local LLMs.
+locally. PyPI/GitHub distributes the package; the MCP client starts a local `ame
+mcp stdio` process so AME can read local documents and use local LLMs.
 
 ## 2. Connect Codex Or Claude Code
 
-Print a Codex MCP config:
+Print a Codex MCP config and paste it into Codex custom MCP settings:
 
 ```bash
 ame connect --client codex
 ```
 
-Print a Claude Code MCP config:
+For Claude Code:
 
 ```bash
 ame connect --client claude
 ```
 
-Add the printed JSON to the client MCP settings.
 By default, the `command` field is `ame`, not an absolute executable path.
 
 ```json
@@ -58,9 +64,8 @@ By default, the `command` field is `ame`, not an absolute executable path.
 }
 ```
 
-The default config does not include an absolute executable path. `AME_HOME` is
-only added to `env` when you use a custom AME data folder. The MCP client does
-not need the virtual environment to be activated every time.
+The default config does not include an absolute executable path. The MCP client
+does not need the virtual environment to be activated every time.
 
 This works even before a corpus exists. The bootstrap MCP server lets Codex or
 Claude Code diagnose hardware, plan model downloads, build memory, and query the
