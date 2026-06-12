@@ -19,7 +19,7 @@ from ame.models.router import ModelRouter
 from ame.pipeline import MemoryPipeline
 
 
-SERVER_VERSION = "0.1.5"
+SERVER_VERSION = "0.1.7"
 
 
 class McpToolSpec(BaseModel):
@@ -100,6 +100,20 @@ READ_TOOLS = [
 
 
 BOOTSTRAP_TOOLS = [
+    McpToolSpec(
+        name="ame_flow",
+        description="Return the recommended AME setup flow, branching rules, and response templates. Use this before guiding a user through AME setup.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "stage": {
+                    "type": "string",
+                    "enum": ["all", "diagnose", "model_plan", "model_install", "load", "query"],
+                    "description": "Flow stage to return. Defaults to all.",
+                },
+            },
+        },
+    ),
     McpToolSpec(
         name="ame_doctor",
         description="Diagnose local AME runtime, hardware tier, and recommended local models.",
@@ -227,6 +241,8 @@ class BootstrapMcpToolbox:
 
     def call(self, tool_name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         arguments = arguments or {}
+        if tool_name == "ame_flow":
+            return _ame_flow(stage=str(arguments.get("stage") or "all"))
         if tool_name == "ame_doctor":
             return self._doctor()
         if tool_name == "ame_setup":
@@ -472,3 +488,185 @@ def _current_mcp_env() -> dict[str, str]:
     if not os.environ.get("AME_HOME"):
         return {}
     return {"AME_HOME": str(ame_home().expanduser().resolve())}
+
+
+def _ame_flow(*, stage: str = "all") -> dict[str, Any]:
+    stages = [
+        {
+            "stage": "diagnose",
+            "user_intents": ["사양 진단해줘", "내 컴퓨터에서 AME가 어떤 모델을 쓰면 좋을지 봐줘"],
+            "tool": "ame_doctor",
+            "branching": [
+                "Ollama가 없으면 로컬 모델 설치 전에 Ollama 설치가 필요하다고 설명합니다.",
+                "추천 모델이 이미 설치되어 있으면 model_install을 건너뛰고 load 단계로 이동합니다.",
+                "모델이 없으면 model_plan으로 이동하고 다운로드 전에 승인을 요청합니다.",
+            ],
+            "response_template": [
+                "현재 사양 요약: OS, architecture, RAM, available disk.",
+                "AME tier: detected tier and why.",
+                "추천 모델: extract, verify, synthesize, embedding.",
+                "설치 상태: installed models and missing models.",
+                "다음 단계: downloads needed or memory load can start.",
+            ],
+            "output_template": "\n".join(
+                [
+                    "사양 진단 결과입니다.",
+                    "",
+                    "- OS/CPU: {os} {architecture}",
+                    "- RAM: {ram_gb}GB",
+                    "- 사용 가능 디스크: {disk_free_gb}GB",
+                    "- AME tier: {tier}",
+                    "",
+                    "추천 모델은 다음과 같습니다.",
+                    "",
+                    "- 추출: {extract_model}",
+                    "- 검증: {verify_model}",
+                    "- 종합: {synthesize_model}",
+                    "- 임베딩: {embedding_model}",
+                    "",
+                    "현재 설치 상태를 보면 {installed_summary}입니다.",
+                    "",
+                    "다음 단계는 {next_step}입니다.",
+                ]
+            ),
+        },
+        {
+            "stage": "model_plan",
+            "user_intents": ["필요한 모델 먼저 알려줘", "다운로드 전에 계획 보여줘"],
+            "tool": "ame_setup with execute=false",
+            "branching": [
+                "이 단계에서는 모델을 다운로드하지 않습니다.",
+                "빠진 모델이 없으면 load 단계로 이동합니다.",
+                "빠진 모델이 있으면 model_install 진행 승인을 요청합니다.",
+            ],
+            "response_template": [
+                "다운로드 필요 여부.",
+                "다운로드할 모델 목록.",
+                "왜 필요한지: extraction, verification, synthesis, embeddings.",
+                "예상 영향: disk, time, local-only behavior.",
+                "승인 질문: '진행해도 될까요?'",
+            ],
+            "output_template": "\n".join(
+                [
+                    "모델 설치 계획입니다. 아직 다운로드는 실행하지 않았습니다.",
+                    "",
+                    "필요한 모델:",
+                    "{missing_models}",
+                    "",
+                    "이 모델들이 필요한 이유:",
+                    "- 추출 모델: 문서에서 엔티티, 관계, 결정, 근거를 뽑기 위해 사용합니다.",
+                    "- 검증 모델: 추출된 내용을 원문과 대조해 과한 추론을 줄이는 데 사용합니다.",
+                    "- 종합 모델: Bronze/Silver 결과를 Gold 메모리로 정리하는 데 사용합니다.",
+                    "- 임베딩 모델: 문서 검색과 RAG 검색에 사용합니다.",
+                    "",
+                    "진행하면 로컬 디스크와 다운로드 시간이 사용됩니다.",
+                    "이 계획대로 모델을 설치해도 될까요?",
+                ]
+            ),
+        },
+        {
+            "stage": "model_install",
+            "user_intents": ["승인할게 설치해줘", "모델 다운로드 진행해줘"],
+            "tool": "ame_setup with execute=true",
+            "branching": [
+                "사용자가 명시적으로 승인한 뒤에만 실행합니다.",
+                "설치가 실패하면 실패한 모델을 보고하고 재시도 또는 deterministic fallback 여부를 묻습니다.",
+                "설치가 성공하면 load 단계로 이동합니다.",
+            ],
+            "response_template": [
+                "실행 결과: installed, skipped, failed.",
+                "현재 준비 상태.",
+                "다음 단계: source_path and corpus_id required for memory build.",
+            ],
+            "output_template": "\n".join(
+                [
+                    "모델 설치 결과입니다.",
+                    "",
+                    "- 설치 완료: {installed_models}",
+                    "- 이미 있던 모델: {skipped_models}",
+                    "- 실패한 모델: {failed_models}",
+                    "",
+                    "현재 AME는 {readiness} 상태입니다.",
+                    "다음 단계로 메모리화할 문서 폴더와 corpus 이름이 필요합니다.",
+                ]
+            ),
+        },
+        {
+            "stage": "load",
+            "user_intents": ["이 폴더를 메모리화해줘", "문서 읽혀서 RAG 구축해줘"],
+            "tool": "ame_load",
+            "branching": [
+                "source_path가 없으면 문서 폴더 경로를 요청합니다.",
+                "corpus_id가 없으면 짧은 소문자 corpus 이름을 제안합니다.",
+                "구축이 성공하면 query 단계로 이동합니다.",
+            ],
+            "response_template": [
+                "대상 폴더와 corpus_id.",
+                "구축 방식: Bronze/Silver/Gold.",
+                "처리 결과: documents, nodes, edges, rejected items.",
+                "저장 위치 또는 corpus name.",
+                "다음 질문 예시.",
+            ],
+            "output_template": "\n".join(
+                [
+                    "문서 메모리 구축 결과입니다.",
+                    "",
+                    "- corpus: {corpus_id}",
+                    "- 대상 폴더: {source_path}",
+                    "- 구축 방식: Bronze -> Silver -> Gold",
+                    "- 처리 문서: {documents}",
+                    "- Gold nodes: {gold_nodes}",
+                    "- Gold edges: {gold_edges}",
+                    "- 제외/실패 항목: {rejected}",
+                    "",
+                    "이제 `{corpus_id}` 메모리를 기준으로 질문할 수 있습니다.",
+                    "예: `{corpus_id} 메모리에서 현재 유효한 결정과 근거를 알려줘.`",
+                ]
+            ),
+        },
+        {
+            "stage": "query",
+            "user_intents": ["구축된 메모리 기준으로 답해줘", "이 문서들에서 결정 근거 찾아줘"],
+            "tool": "memory_search or memory_query",
+            "branching": [
+                "bootstrap mode에서 corpus_id가 없으면 사용할 corpus를 묻거나 ame_corpora를 호출합니다.",
+                "명시적으로 구분하지 않는 한 일반 지식이 아니라 메모리 결과를 기준으로 답합니다.",
+                "확신도나 근거가 약하면 그 사실을 명확히 말합니다.",
+            ],
+            "response_template": [
+                "짧은 답변.",
+                "근거: relevant memory sources or nodes.",
+                "확신도와 빈틈.",
+                "추가로 확인하면 좋은 질문.",
+            ],
+            "output_template": "\n".join(
+                [
+                    "짧게 답하면, {answer}",
+                    "",
+                    "근거:",
+                    "{evidence}",
+                    "",
+                    "확신도와 빈틈:",
+                    "- 확신도: {confidence}",
+                    "- 아직 약한 부분: {gaps}",
+                    "",
+                    "다음으로 확인하면 좋은 질문:",
+                    "{follow_up_questions}",
+                ]
+            ),
+        },
+    ]
+    valid = {item["stage"] for item in stages} | {"all"}
+    if stage not in valid:
+        raise ValueError("stage must be one of all, diagnose, model_plan, model_install, load, query")
+    selected = stages if stage == "all" else [item for item in stages if item["stage"] == stage]
+    return {
+        "style_rules": [
+            "여러 단계를 한 답변에 합치지 말고 한 번에 한 단계만 처리합니다.",
+            "한국어 사용자에게는 '~입니다', '~습니다'의 존댓말을 사용합니다.",
+            "모델 다운로드 전에는 반드시 계획을 먼저 보여주고 명시적 승인을 받습니다.",
+            "넓은 설명보다 지금 해야 할 다음 행동을 구체적으로 제시합니다.",
+            "채팅에서 읽을 수 있게 짧게 답하되, 다음 분기를 바꾸는 도구 결과는 포함합니다.",
+        ],
+        "flow": selected,
+    }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.7 - 2026-06-12
+
+- Added the `ame_flow` MCP tool with stage-by-stage setup branches and response templates.
+- Updated README examples to guide users through AME setup as separate natural-language steps.
+- Bumped MCP server metadata to 0.1.7.
+
 ## 0.1.6 - 2026-06-12
 
 - Switched public install docs from TestPyPI to PyPI.

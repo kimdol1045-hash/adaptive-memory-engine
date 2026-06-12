@@ -7,7 +7,7 @@ The preferred UX is agent-first: connect AME through MCP, then ask Codex or
 Claude Code to diagnose hardware, recommend models, build memory, and answer
 questions in natural language.
 
-Current status: alpha, distributed through PyPI. Current version: `0.1.6`.
+Current status: alpha, distributed through PyPI. Current version: `0.1.7`.
 
 ## 1. Install
 
@@ -71,24 +71,44 @@ This works even before a corpus exists. The bootstrap MCP server lets Codex or
 Claude Code diagnose hardware, plan model downloads, build memory, and query the
 built memory.
 
-## 3. Ask In Natural Language
+## 3. Proceed In Natural Language
 
-Then ask Codex or Claude Code:
+Use separate steps instead of one long request.
+
+First ask the agent to follow the AME flow:
+
+```text
+Follow the AME flow step by step.
+```
+
+Then diagnose hardware and model fit:
 
 ```text
 Diagnose my computer for AME and recommend local models.
-If downloads are needed, show me the model plan first.
-After I approve, install the models.
-Then build memory named my-docs from /Users/me/Documents/planning.
-Once memory is built, answer questions from that local memory.
 ```
 
-After that, ask normally:
+If downloads are needed, ask for the plan first:
 
 ```text
-What decisions are currently valid?
-Why did we choose this architecture?
-Which past decisions are now superseded?
+Show me the models to download and why. Do not install yet.
+```
+
+After reviewing the plan, approve installation:
+
+```text
+Approved. Install the required models.
+```
+
+Then build memory from a folder:
+
+```text
+Build memory named my-docs from /Users/me/Documents/planning.
+```
+
+After memory is built, ask grounded questions:
+
+```text
+Using my-docs memory, tell me the current decisions and their rationale.
 ```
 
 ## MCP Tools
@@ -96,6 +116,7 @@ Which past decisions are now superseded?
 AME exposes these tools to Codex or Claude Code:
 
 - `ame_doctor`: diagnose hardware and local model status
+- `ame_flow`: return the step-by-step flow and response templates
 - `ame_setup`: plan or execute recommended model downloads
 - `ame_load`: build Bronze/Silver/Gold memory from a folder
 - `ame_corpora`: list built corpora
