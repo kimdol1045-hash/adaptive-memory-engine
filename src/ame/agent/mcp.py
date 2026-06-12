@@ -20,7 +20,7 @@ from ame.models.router import ModelRouter
 from ame.pipeline import MemoryPipeline
 
 
-SERVER_VERSION = "0.1.13"
+SERVER_VERSION = "0.1.14"
 
 MCP_INSTRUCTIONS = "\n".join(
     [
@@ -449,7 +449,7 @@ class BootstrapMcpToolbox:
         corpora_root = home / "corpora"
         corpora = []
         for child in sorted(corpora_root.iterdir()):
-            if child.is_dir():
+            if child.is_dir() and not child.name.startswith("."):
                 corpora.append({"corpus_id": child.name, "path": str(child)})
         return {"ame_home": str(home), "corpora": corpora}
 

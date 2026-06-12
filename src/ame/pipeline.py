@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 
 from pydantic import BaseModel
 
@@ -50,6 +52,26 @@ class MemoryPipeline:
         profile: str | None = None,
     ) -> IngestReport:
         root = require_corpus(corpus_id)
+        transaction = _IngestTransaction(root)
+        staging_root = transaction.stage()
+        try:
+            report = self._ingest_into(staging_root, corpus_id, source_path, mode=mode, llm_client=llm_client, profile=profile)
+            transaction.commit(staging_root)
+            return report.model_copy(update={"custom_kg_path": root / "store" / "lightrag" / "custom_kg.json"})
+        except Exception:
+            transaction.rollback(staging_root)
+            raise
+
+    def _ingest_into(
+        self,
+        root: Path,
+        corpus_id: str,
+        source_path: Path,
+        *,
+        mode: Literal["deterministic", "llm"],
+        llm_client: LlmClient | None,
+        profile: str | None,
+    ) -> IngestReport:
         config = load_config()
         connector = ConnectorRouter().resolve(source_path, profile)
         bronze = BronzeStore(root)
@@ -133,7 +155,7 @@ class MemoryPipeline:
             "gold_nodes": len(nodes),
             "gold_edges": len(edges),
         }
-        CorpusStateStore(root).record_ingest(
+        CorpusStateStore(root, corpus_id=corpus_id).record_ingest(
             source_path=source_path,
             mode=mode,
             documents=[
@@ -193,3 +215,30 @@ def _rejected_uses_sources(row: dict, source_ids: set[str]) -> bool:
         elif isinstance(value, list):
             values.update(str(item) for item in value)
     return bool(values & source_ids)
+
+
+class _IngestTransaction:
+    def __init__(self, root: Path):
+        self.root = root
+        self.stage_root = root.parent / f".{root.name}.ingest-{uuid4().hex}"
+
+    def stage(self) -> Path:
+        if self.stage_root.exists():
+            shutil.rmtree(self.stage_root)
+        if self.root.exists():
+            shutil.copytree(self.root, self.stage_root)
+        else:
+            self.stage_root.mkdir(parents=True, exist_ok=True)
+        return self.stage_root
+
+    def commit(self, staging_root: Path) -> None:
+        backup = self.root.parent / f".{self.root.name}.backup-{uuid4().hex}"
+        if self.root.exists():
+            self.root.replace(backup)
+        staging_root.replace(self.root)
+        if backup.exists():
+            shutil.rmtree(backup)
+
+    def rollback(self, staging_root: Path) -> None:
+        if staging_root.exists():
+            shutil.rmtree(staging_root)

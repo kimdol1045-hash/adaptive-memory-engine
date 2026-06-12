@@ -22,10 +22,10 @@ class CorpusState(BaseModel):
 
 
 class CorpusStateStore:
-    def __init__(self, corpus_root: Path):
+    def __init__(self, corpus_root: Path, corpus_id: str | None = None):
         self.path = corpus_root / "state.db"
         self.legacy_path = corpus_root / "state.json"
-        self.corpus_id = corpus_root.name
+        self.corpus_id = corpus_id or corpus_root.name
 
     def read(self) -> CorpusState:
         path = self.path if self.path.exists() and self.path.read_text(encoding="utf-8").strip() else self.legacy_path

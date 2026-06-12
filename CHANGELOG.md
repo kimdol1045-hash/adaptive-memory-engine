@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.14 - 2026-06-12
+
+- Make ingest transactional: Bronze/Silver/Gold/LightRAG outputs are staged first and committed only after the full memory build succeeds.
+- Roll back failed memory builds so failed 3-layer builds do not leave partial corpus artifacts.
+- Hide temporary ingest staging directories from `ame_corpora`.
+
 ## 0.1.13 - 2026-06-12
 
 - Process only documents from the current source path during ingest so stale large Bronze documents in the same corpus do not get reprocessed.

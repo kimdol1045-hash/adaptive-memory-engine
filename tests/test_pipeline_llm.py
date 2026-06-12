@@ -1,8 +1,10 @@
 from pathlib import Path
 
 from ame.core.corpus import create_corpus
+from ame.core.errors import LlmClientError
 from ame.core.paths import ensure_runtime_layout
 from ame.core.state import CorpusStateStore
+from ame.bronze.store import BronzeStore
 from ame.pipeline import MemoryPipeline
 
 
@@ -21,6 +23,11 @@ class FakeClient:
                 {"subject": "OpenClaw", "predicate": "USES", "object": "LightRAG", "confidence": 0.9}
             ],
         }
+
+
+class FailingClient:
+    def complete_json(self, prompt: str, payload: dict) -> dict:
+        raise LlmClientError("test extraction failure")
 
 
 def test_pipeline_llm_mode_uses_client_and_records_state(tmp_path: Path, monkeypatch) -> None:
@@ -88,3 +95,51 @@ def test_pipeline_only_processes_current_source_documents(tmp_path: Path, monkey
     assert first_client.source_ids == ["old.md"]
     assert second_client.source_ids == ["new.md"]
     assert {document.source_id for document in state.documents} == {"old.md", "new.md"}
+
+
+def test_pipeline_rolls_back_new_corpus_outputs_when_llm_ingest_fails(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    ensure_runtime_layout()
+    corpus_root = create_corpus("rollback-new")
+    notes = tmp_path / "notes"
+    notes.mkdir()
+    (notes / "bad.md").write_text("# Bad\nThis document triggers a failing local LLM call.\n", encoding="utf-8")
+
+    try:
+        MemoryPipeline().ingest("rollback-new", notes, mode="llm", llm_client=FailingClient())
+    except LlmClientError:
+        pass
+    else:
+        raise AssertionError("expected LlmClientError")
+
+    assert list(BronzeStore(corpus_root).list()) == []
+    assert CorpusStateStore(corpus_root).read().last_ingest_at is None
+    assert not (corpus_root / "store" / "lightrag" / "custom_kg.json").exists()
+
+
+def test_pipeline_preserves_existing_corpus_when_next_ingest_fails(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    ensure_runtime_layout()
+    corpus_root = create_corpus("rollback-existing")
+    good = tmp_path / "good"
+    bad = tmp_path / "bad"
+    good.mkdir()
+    bad.mkdir()
+    (good / "good.md").write_text("# Good\nOpenClaw decided to use LightRAG.\n", encoding="utf-8")
+    (bad / "bad.md").write_text("# Bad\nThis document triggers a failing local LLM call.\n", encoding="utf-8")
+
+    MemoryPipeline().ingest("rollback-existing", good, mode="llm", llm_client=FakeClient())
+    before_state = CorpusStateStore(corpus_root).read()
+    before_docs = [doc.source_id for doc in BronzeStore(corpus_root).list()]
+
+    try:
+        MemoryPipeline().ingest("rollback-existing", bad, mode="llm", llm_client=FailingClient())
+    except LlmClientError:
+        pass
+    else:
+        raise AssertionError("expected LlmClientError")
+
+    after_state = CorpusStateStore(corpus_root).read()
+    after_docs = [doc.source_id for doc in BronzeStore(corpus_root).list()]
+    assert after_state == before_state
+    assert after_docs == before_docs == ["good.md"]
