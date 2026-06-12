@@ -14,6 +14,22 @@ from ame.hardware.tier import Tier
 from ame.models.registry import ModelRegistry
 
 
+class FakeLlmClient:
+    def __init__(self, model: str | None = None, base_url: str | None = None) -> None:
+        self.model = model
+        self.base_url = base_url
+
+    def complete_json(self, prompt: str, payload: dict) -> dict:
+        return {
+            "entities": [
+                {"type": "Project", "name": "OpenClaw", "span": "OpenClaw", "confidence": 0.9},
+                {"type": "Tool", "name": "LightRAG", "span": "LightRAG", "confidence": 0.9},
+            ],
+            "relations": [{"subject": "OpenClaw", "predicate": "USES", "object": "LightRAG", "confidence": 0.9}],
+            "decisions": [],
+        }
+
+
 def test_model_registry_yaml_matches_runtime_schema() -> None:
     registry = ModelRegistry.from_yaml(Path("configs/model-registry.yaml"))
 
@@ -68,6 +84,7 @@ def test_doctor_reports_current_connectors_and_model_install_state(tmp_path: Pat
 
 def test_local_mcp_manifest_and_call(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    monkeypatch.setattr("ame.pipeline.OllamaClient", FakeLlmClient)
     notes = tmp_path / "notes"
     notes.mkdir()
     (notes / "openclaw.md").write_text(
@@ -91,6 +108,7 @@ def test_local_mcp_manifest_and_call(tmp_path: Path, monkeypatch) -> None:
 
 def test_mcp_stdio_server_lists_and_calls_tools(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    monkeypatch.setattr("ame.pipeline.OllamaClient", FakeLlmClient)
     notes = tmp_path / "notes"
     notes.mkdir()
     (notes / "openclaw.md").write_text(
@@ -99,7 +117,7 @@ def test_mcp_stdio_server_lists_and_calls_tools(tmp_path: Path, monkeypatch) -> 
     )
     runner = CliRunner()
 
-    assert runner.invoke(app, ["load", "stdio", str(notes), "--mode", "deterministic"]).exit_code == 0
+    assert runner.invoke(app, ["load", "stdio", str(notes)]).exit_code == 0
 
     server = McpStdioServer(require_corpus("stdio"))
     initialized = server.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
@@ -133,7 +151,7 @@ def test_mcp_stdio_accepts_content_length_framing() -> None:
     _headers, payload = raw.split("\r\n\r\n", 1)
     response = json.loads(payload)
     assert response["result"]["serverInfo"]["name"] == "adaptive-memory-engine"
-    assert response["result"]["serverInfo"]["version"] == "0.1.11"
+    assert response["result"]["serverInfo"]["version"] == "0.1.12"
     assert "Use AME MCP tools before shell commands" in response["result"]["instructions"]
 
 
@@ -149,6 +167,7 @@ def test_mcp_exposes_ame_setup_prompt() -> None:
 
 def test_bootstrap_mcp_can_load_and_query_without_bound_corpus(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    monkeypatch.setattr("ame.pipeline.OllamaClient", FakeLlmClient)
     notes = tmp_path / "notes"
     notes.mkdir()
     (notes / "openclaw.md").write_text(
@@ -165,7 +184,7 @@ def test_bootstrap_mcp_can_load_and_query_without_bound_corpus(tmp_path: Path, m
             "method": "tools/call",
             "params": {
                 "name": "ame_load",
-                "arguments": {"corpus_id": "bootstrap", "source_path": str(notes), "mode": "deterministic"},
+                "arguments": {"corpus_id": "bootstrap", "source_path": str(notes), "mode": "llm", "background": False},
             },
         }
     )

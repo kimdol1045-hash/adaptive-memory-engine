@@ -48,7 +48,7 @@ class RawLlmExtraction(BaseModel):
 
 
 class LlmExtractor:
-    """LLM extraction with deterministic prefill for offline-stable metadata."""
+    """Local LLM extraction with rule-based prefill for stable metadata."""
 
     def __init__(self, client: LlmClient | None = None, max_retries: int = 1):
         self.client = client
@@ -58,16 +58,16 @@ class LlmExtractor:
     def extract(self, doc: BronzeDocument) -> tuple[list[SilverEntity], list[SilverRelation], list[SilverDecision]]:
         if self.client is None:
             return self.fallback.extract(doc)
-        deterministic_entities, deterministic_relations, deterministic_decisions = self.fallback.extract(doc)
+        baseline_entities, baseline_relations, baseline_decisions = self.fallback.extract(doc)
         payload = {
             "source_id": doc.source_id,
             "metadata": doc.metadata,
             "content": doc.content,
         }
         raw = self._complete_extraction(payload)
-        entities = deterministic_entities + self._entities(doc, raw.entities)
-        relations = deterministic_relations + self._relations(doc, raw.relations)
-        decisions = deterministic_decisions + self._decisions(doc, raw.decisions)
+        entities = baseline_entities + self._entities(doc, raw.entities)
+        relations = baseline_relations + self._relations(doc, raw.relations)
+        decisions = baseline_decisions + self._decisions(doc, raw.decisions)
         return self._dedupe_entities(entities), self._dedupe_relations(relations), self._dedupe_decisions(decisions)
 
     def _complete_extraction(self, payload: dict) -> RawLlmExtraction:

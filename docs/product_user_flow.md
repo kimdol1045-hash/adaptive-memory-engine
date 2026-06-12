@@ -107,12 +107,8 @@ Codex / Claude Code
 
 ## Fallback
 
-`ame load --mode deterministic`은 기본 제품 흐름이 아닙니다.
-
-이 모드는 다음 상황에서만 사용합니다.
-
-- 테스트
-- 데모
+사용자-facing 제품 흐름에는 deterministic load 모드를 두지 않습니다.
+모델이 없거나 로컬 LLM 호출이 실패하면 deterministic으로 우회하지 않고, 모델 설치/문서 chunk 크기/타임아웃 문제를 먼저 해결합니다.
 - 로컬 LLM 설치 전 smoke check
 - 저사양 환경에서 최소 기능 확인
 

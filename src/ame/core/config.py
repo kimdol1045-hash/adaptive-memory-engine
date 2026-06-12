@@ -24,7 +24,7 @@ class LightRagConfig(BaseModel):
     llm_model: str = "qwen3:8b"
     embedding_model: str = "nomic-embed-text"
     embedding_dim: int = 768
-    max_token_size: int = 8192
+    max_token_size: int = 2048
 
 
 class SlackConfig(BaseModel):

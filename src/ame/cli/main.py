@@ -124,10 +124,7 @@ def doctor() -> None:
     typer.echo(f"Ollama model status source: {install_plan.installed_models_source or 'unavailable'}")
     typer.echo(f"Installed local LLM models: {', '.join(install_plan.installed_models) or 'n/a'}")
     typer.echo(f"Missing recommended local LLM models: {', '.join(install_plan.missing_models) or 'none'}")
-    typer.echo(
-        "Default AME usage is local-LLM Bronze/Silver/Gold build. "
-        "Use deterministic mode only as a lightweight fallback."
-    )
+    typer.echo("Default AME usage is local-LLM Bronze/Silver/Gold build.")
     if install_plan.error:
         typer.echo(f"Model status error: {install_plan.error}")
 
@@ -181,7 +178,7 @@ def create(corpus_id: str) -> None:
 def ingest(
     corpus_id: str,
     source_path: Path,
-    mode: Literal["deterministic", "llm"] = "deterministic",
+    mode: Literal["llm"] = "llm",
     profile: str | None = None,
 ) -> None:
     try:
@@ -204,7 +201,7 @@ def ingest(
 def load(
     corpus_id: str,
     source_path: Path,
-    mode: Literal["deterministic", "llm"] = "llm",
+    mode: Literal["llm"] = "llm",
     profile: str | None = None,
 ) -> None:
     ensure_runtime_layout()

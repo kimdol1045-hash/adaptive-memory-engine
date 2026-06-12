@@ -43,7 +43,7 @@ py -m venv $env:TEMP\ame-release-smoke
 export AME_HOME="/tmp/ame-release-runtime"
 memory doctor
 memory setup
-memory load smoke-docs ./examples/notes --mode deterministic
+memory load smoke-docs ./examples/notes
 memory connect smoke-docs --client codex
 ```
 

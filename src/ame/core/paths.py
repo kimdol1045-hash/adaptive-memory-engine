@@ -57,7 +57,7 @@ def ensure_runtime_layout() -> Path:
                     'llm_model = "qwen3:8b"',
                     'embedding_model = "nomic-embed-text"',
                     "embedding_dim = 768",
-                    "max_token_size = 8192",
+                    "max_token_size = 2048",
                     "",
                     "[slack]",
                     'client_id = ""',

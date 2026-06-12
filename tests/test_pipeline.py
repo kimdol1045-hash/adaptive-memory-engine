@@ -8,8 +8,18 @@ from ame.core.state import CorpusStateStore
 from ame.gold.store import GoldStore
 
 
+class FakeLlmClient:
+    def __init__(self, model: str | None = None, base_url: str | None = None) -> None:
+        self.model = model
+        self.base_url = base_url
+
+    def complete_json(self, prompt: str, payload: dict) -> dict:
+        return {"entities": [], "relations": [], "decisions": []}
+
+
 def test_cli_pipeline(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    monkeypatch.setattr("ame.pipeline.OllamaClient", FakeLlmClient)
     notes = tmp_path / "notes"
     notes.mkdir()
     (notes / "openclaw.md").write_text(
@@ -32,7 +42,7 @@ def test_cli_pipeline(tmp_path: Path, monkeypatch) -> None:
     assert "openclaw.md" in query.output
 
     corpus_root = tmp_path / ".ame" / "corpora" / "openclaw"
-    repeat_ingest = runner.invoke(app, ["ingest", "openclaw", str(notes), "--mode", "deterministic"])
+    repeat_ingest = runner.invoke(app, ["ingest", "openclaw", str(notes)])
     assert repeat_ingest.exit_code == 0
 
     edges = GoldStore(corpus_root).edges()
@@ -46,7 +56,7 @@ def test_cli_pipeline(tmp_path: Path, monkeypatch) -> None:
     assert len(list(BronzeStore(corpus_root).list())) == 1
 
     state = CorpusStateStore(corpus_root).read()
-    assert state.last_mode == "deterministic"
+    assert state.last_mode == "llm"
     assert len(state.documents) == 1
 
     stats = runner.invoke(app, ["stats", "openclaw"])
@@ -63,6 +73,7 @@ def test_cli_pipeline(tmp_path: Path, monkeypatch) -> None:
 
 def test_cli_chat_keeps_session_open_for_questions(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    monkeypatch.setattr("ame.pipeline.OllamaClient", FakeLlmClient)
     notes = tmp_path / "notes"
     notes.mkdir()
     (notes / "openclaw.md").write_text(
@@ -71,7 +82,7 @@ def test_cli_chat_keeps_session_open_for_questions(tmp_path: Path, monkeypatch) 
     )
     runner = CliRunner()
 
-    assert runner.invoke(app, ["load", "openclaw", str(notes), "--mode", "deterministic"]).exit_code == 0
+    assert runner.invoke(app, ["load", "openclaw", str(notes)]).exit_code == 0
     chat = runner.invoke(app, ["chat", "openclaw"], input="LightRAG\n/exit\n")
 
     assert chat.exit_code == 0

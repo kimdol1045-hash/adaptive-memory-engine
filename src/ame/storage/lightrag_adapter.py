@@ -135,6 +135,7 @@ class CoreLightRagBackend:
         self.rag = rag
         self.query_param_cls = query_param_cls
         self.config = config or LightRagConfig()
+        self.effective_max_token_size = effective_embedding_max_token_size(self.config)
         self.initialized = False
 
     @classmethod
@@ -150,7 +151,7 @@ class CoreLightRagBackend:
 
         @wrap_embedding_func_with_attrs(
             embedding_dim=config.embedding_dim,
-            max_token_size=config.max_token_size,
+            max_token_size=effective_embedding_max_token_size(config),
             model_name=config.embedding_model,
         )
         async def embedding_func(texts: list[str]):
@@ -214,6 +215,8 @@ class CoreLightRagBackend:
             "backend": self.name,
             "package_available": light_rag_package_available(),
             "initialized": self.initialized,
+            "max_token_size": self.config.max_token_size,
+            "effective_max_token_size": self.effective_max_token_size,
             **ollama_server_status(self.config.ollama_host),
         }
 
@@ -338,6 +341,13 @@ def ollama_server_status(host: str) -> dict:
             "ollama_server_available": False,
             "ollama_server_error": str(exc),
         }
+
+
+def effective_embedding_max_token_size(config: LightRagConfig) -> int:
+    model = config.embedding_model.casefold()
+    if model.startswith("nomic-embed-text"):
+        return min(config.max_token_size, 2048)
+    return config.max_token_size
 
 
 class CharTokenizer:

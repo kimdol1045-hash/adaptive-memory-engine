@@ -45,7 +45,7 @@ class MemoryPipeline:
         self,
         corpus_id: str,
         source_path: Path,
-        mode: Literal["deterministic", "llm"] = "deterministic",
+        mode: Literal["deterministic", "llm"] = "llm",
         llm_client: LlmClient | None = None,
         profile: str | None = None,
     ) -> IngestReport:

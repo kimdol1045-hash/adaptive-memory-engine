@@ -9,7 +9,7 @@ from ame.core.errors import LightRagBackendError
 from ame.gold.schema import GoldEdge, GoldNode
 from ame.gold.store import GoldStore
 from ame.query.result import QueryResult
-from ame.storage.lightrag_adapter import CoreLightRagBackend, LightRagAdapter
+from ame.storage.lightrag_adapter import CoreLightRagBackend, LightRagAdapter, effective_embedding_max_token_size
 
 
 def test_lightrag_adapter_stages_custom_kg_and_status(tmp_path: Path) -> None:
@@ -203,6 +203,12 @@ def test_lightrag_auto_selects_core_when_package_server_and_models_available(tmp
     adapter = LightRagAdapter(tmp_path / "corpus", config=LightRagConfig(backend="auto"))
 
     assert adapter.status()["backend"] == "lightrag-core"
+
+
+def test_nomic_embed_text_max_token_size_is_clamped_to_model_context() -> None:
+    config = LightRagConfig(embedding_model="nomic-embed-text", max_token_size=8192)
+
+    assert effective_embedding_max_token_size(config) == 2048
 
 
 def test_lightrag_auto_falls_back_when_required_models_missing(tmp_path: Path, monkeypatch) -> None:

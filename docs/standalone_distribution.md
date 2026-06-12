@@ -146,9 +146,8 @@ Bronze/Silver/Gold 기준으로 보면 다음처럼 나뉩니다.
 
 - Bronze: 원본 문서 보존 계층입니다.
 - Silver: entity, relation, decision, rationale 추출 계층이며 로컬 LLM이 가장 크게 개입하는 계층입니다.
-- Gold: Silver 결과를 graph, timeline, ontology, supersession 구조로 승격하는 계층이며 deterministic builder와 validation gate가 중심입니다.
+- Gold: Silver 결과를 graph, timeline, ontology, supersession 구조로 승격하는 계층이며 graph builder와 validation gate가 중심입니다.
 
-`memory load --mode deterministic`은 데모, 테스트, 저사양 fallback 용도입니다.  
 사용자가 기대하는 “컴퓨터 사양에 맞는 local-first memory engine”의 기본 경로는 로컬 LLM 설치와 `memory load`입니다.
 
 ## Wheel 배포
@@ -223,7 +222,6 @@ memory init
 - bronze/silver/gold memory pipeline
 - hardware-adaptive local model recommendation
 - local LLM extraction through Ollama
-- deterministic fallback extraction
 - local MCP manifest/call simulation
 - Obsidian export
 - benchmark runner

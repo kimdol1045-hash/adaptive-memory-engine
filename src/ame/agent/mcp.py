@@ -20,7 +20,7 @@ from ame.models.router import ModelRouter
 from ame.pipeline import MemoryPipeline
 
 
-SERVER_VERSION = "0.1.11"
+SERVER_VERSION = "0.1.12"
 
 MCP_INSTRUCTIONS = "\n".join(
     [
@@ -150,11 +150,11 @@ BOOTSTRAP_TOOLS = [
             "properties": {
                 "corpus_id": {"type": "string"},
                 "source_path": {"type": "string"},
-                "mode": {"type": "string", "enum": ["llm", "deterministic"]},
+                "mode": {"type": "string", "enum": ["llm"], "description": "AME uses local LLM mode for memory builds."},
                 "profile": {"type": "string"},
                 "background": {
                     "type": "boolean",
-                    "description": "Run as a background job. Defaults to true for llm mode and false for deterministic mode.",
+                    "description": "Run as a background job. Defaults to true for local LLM memory builds.",
                 },
             },
             "required": ["corpus_id", "source_path"],
@@ -283,8 +283,8 @@ class BootstrapMcpToolbox:
             if not source_path:
                 raise ValueError("ame_load requires source_path")
             mode = str(arguments.get("mode") or "llm")
-            if mode not in {"llm", "deterministic"}:
-                raise ValueError("ame_load mode must be llm or deterministic")
+            if mode != "llm":
+                raise ValueError("ame_load only supports llm mode in MCP. AME memory builds use local LLMs.")
             profile = arguments.get("profile")
             background = arguments.get("background")
             if background is None:
@@ -420,7 +420,7 @@ class BootstrapMcpToolbox:
         elif status == "failed":
             payload["next_steps"] = [
                 "Report the error and stderr_tail to the user.",
-                "Ask whether to retry with deterministic mode or a smaller source folder.",
+                "Report the error and ask whether to retry with a smaller source folder or after reducing document chunk size.",
             ]
         return payload
 
@@ -785,7 +785,7 @@ def _ame_flow(*, stage: str = "all") -> dict[str, Any]:
             "tool": "ame_setup with execute=true",
             "branching": [
                 "사용자가 명시적으로 승인한 뒤에만 실행합니다.",
-                "설치가 실패하면 실패한 모델을 보고하고 재시도 또는 deterministic fallback 여부를 묻습니다.",
+                "설치가 실패하면 실패한 모델을 보고하고 로컬 LLM 준비 문제를 먼저 해결합니다.",
                 "설치가 성공하면 load 단계로 이동합니다.",
             ],
             "response_template": [

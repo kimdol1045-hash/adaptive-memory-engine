@@ -18,5 +18,5 @@ class ModelRouter:
 
     def plan(self, profile: HardwareProfile) -> ModelPlan:
         models = self.registry.for_tier(profile.tier)
-        mode = "full-local" if profile.ollama_installed else "deterministic"
+        mode = "full-local" if profile.ollama_installed else "setup-required"
         return ModelPlan(tier=profile.tier.value, models=models, mode=mode)

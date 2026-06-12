@@ -7,7 +7,7 @@ The preferred UX is agent-first: connect AME through MCP, then ask Codex or
 Claude Code to diagnose hardware, recommend models, build memory, and answer
 questions in natural language.
 
-Current status: alpha, distributed through PyPI. Current version: `0.1.11`.
+Current status: alpha, distributed through PyPI. Current version: `0.1.12`.
 
 ## 1. Install
 
@@ -310,11 +310,7 @@ or `ame connect --client claude` and paste the printed config into the client.
 - Silver: extracts entities, relations, decisions, rationales, and constraints.
 - Gold: builds graph, timeline, supersession, and validation views.
 
-Use deterministic mode only for tests or fallback:
-
-```bash
-ame load my-docs ./path/to/docs --mode deterministic
-```
+AME memory builds use local LLM mode.
 
 ## SDK
 

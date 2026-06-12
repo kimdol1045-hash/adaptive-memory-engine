@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.12 - 2026-06-12
+
+- Removed deterministic mode from the user-facing CLI and MCP memory-build flow.
+- Split large Markdown sections into smaller Bronze chunks so local LLM extraction and embedding stay under model context limits.
+- Changed LightRAG embedding token defaults to `2048` and clamp `nomic-embed-text` to that limit even when older configs still say `8192`.
+- Increased local Ollama extraction request timeout to reduce false failures on larger planning documents.
+
 ## 0.1.11 - 2026-06-12
 
 - Changed MCP `ame_load` in LLM mode to start a background job by default so Codex/Claude tool calls do not time out.

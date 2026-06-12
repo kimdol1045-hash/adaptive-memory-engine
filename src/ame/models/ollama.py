@@ -11,7 +11,7 @@ from ame.core.errors import LlmClientError
 
 
 class OllamaClient:
-    def __init__(self, model: str | None = None, base_url: str | None = None, timeout: int = 120):
+    def __init__(self, model: str | None = None, base_url: str | None = None, timeout: int = 300):
         self.model = model or os.environ.get("AME_OLLAMA_MODEL", "qwen3:8b")
         self.base_url = (base_url or os.environ.get("AME_OLLAMA_URL", "http://127.0.0.1:11434")).rstrip("/")
         self.timeout = timeout

@@ -7,7 +7,7 @@ Codex나 Claude Code가 그 메모리를 보고 답할 수 있게 해주는 loca
 
 사용자가 매번 긴 명령어를 치는 방식보다, **Codex/Claude Code에 AME를 연결하고 자연어로 맡기는 방식**을 우선합니다.
 
-현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.11`입니다.
+현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.12`입니다.
 
 ## 1. 설치
 
@@ -301,11 +301,7 @@ ame mcp stdio my-docs
 - Gold: 그래프, 타임라인, supersession, 검증 정보를 구성합니다.
 
 `ame load`의 기본 모드는 로컬 LLM을 사용하는 Bronze/Silver/Gold 구축입니다.
-테스트나 fallback이 필요할 때만 deterministic 모드를 사용합니다.
-
-```bash
-ame load my-docs ./path/to/docs --mode deterministic
-```
+AME의 문서 메모리 구축은 로컬 LLM을 사용하는 `llm` 모드로 진행합니다.
 
 ## SDK
 
