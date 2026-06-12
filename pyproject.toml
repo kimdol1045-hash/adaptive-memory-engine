@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "adaptive-memory-engine"
-version = "0.1.8"
+version = "0.1.9"
 description = "Local-first CLI memory engine that builds Bronze/Silver/Gold RAG memory from local documents."
 readme = "README.md"
 requires-python = ">=3.11"

@@ -125,7 +125,7 @@ def test_mcp_stdio_accepts_content_length_framing() -> None:
     _headers, payload = raw.split("\r\n\r\n", 1)
     response = json.loads(payload)
     assert response["result"]["serverInfo"]["name"] == "adaptive-memory-engine"
-    assert response["result"]["serverInfo"]["version"] == "0.1.8"
+    assert response["result"]["serverInfo"]["version"] == "0.1.9"
     assert "Use AME MCP tools before shell commands" in response["result"]["instructions"]
 
 

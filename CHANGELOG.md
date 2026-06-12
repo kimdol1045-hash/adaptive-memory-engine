@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.9 - 2026-06-12
+
+- Updated the packaged README with cleaner AME MCP flow guidance and response templates.
+- Kept troubleshooting focused on user actions instead of internal debugging history.
+- Bumped package and MCP server metadata to 0.1.9.
+
 ## 0.1.8 - 2026-06-12
 
 - Added standard MCP `Content-Length` stdio framing support while keeping newline JSON-RPC compatibility.

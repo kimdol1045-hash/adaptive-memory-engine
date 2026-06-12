@@ -7,7 +7,7 @@ The preferred UX is agent-first: connect AME through MCP, then ask Codex or
 Claude Code to diagnose hardware, recommend models, build memory, and answer
 questions in natural language.
 
-Current status: alpha, distributed through PyPI. Current version: `0.1.8`.
+Current status: alpha, distributed through PyPI. Current version: `0.1.9`.
 
 ## 1. Install
 
