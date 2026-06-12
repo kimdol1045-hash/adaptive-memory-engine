@@ -32,6 +32,17 @@ Check the install:
 
 If `~/.ame/bin/ame --help` works, the install is good.
 
+If you want to type just `ame` in your terminal, add it to PATH once:
+
+```bash
+echo 'export PATH="$HOME/.ame/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+ame --help
+```
+
+This is only for terminal convenience. MCP config still uses the absolute
+`~/.ame/bin/ame` path for reliability.
+
 ## 2. Connect Codex Or Claude Code
 
 Print a Codex MCP config:
@@ -120,6 +131,8 @@ If `ame` is not on PATH, the install can still be valid. Use the absolute path:
 ~/.ame/bin/ame --help
 ~/.ame/bin/ame connect --client codex
 ```
+
+Add `~/.ame/bin` to PATH if you also want the short `ame` command in your shell.
 
 New versions use `ame` as the recommended command because the older `memory`
 command can collide with previous installs. `memory` remains as a compatibility

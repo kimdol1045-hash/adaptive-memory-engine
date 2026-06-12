@@ -31,6 +31,16 @@ python3 -m venv ~/.ame
 
 `~/.ame/bin/ame --help`가 보이면 정상입니다.
 
+터미널에서도 `ame`만 입력하고 싶다면 PATH에 한 번만 추가합니다.
+
+```bash
+echo 'export PATH="$HOME/.ame/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+ame --help
+```
+
+이 설정은 터미널 편의용입니다. MCP 설정은 여전히 `~/.ame/bin/ame` 절대경로를 사용하므로 더 안정적입니다.
+
 ## 2. Codex 또는 Claude Code에 연결
 
 Codex용 MCP 설정을 출력합니다.
@@ -110,6 +120,7 @@ ame> /exit
 MCP 설정을 한 번 추가한 뒤에는 Codex/Claude Code가 설정에 들어간 절대경로로 `ame`를 직접 실행합니다.
 
 터미널에서 `ame` 명령이 안 보여도 `~/.ame/bin/ame`가 실행되면 설치는 정상입니다.
+터미널에서도 짧게 쓰고 싶으면 `~/.ame/bin`을 PATH에 추가하세요.
 
 ```bash
 ~/.ame/bin/ame --help
