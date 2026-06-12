@@ -113,7 +113,7 @@ my-docs 메모리를 기준으로 현재 유효한 결정과 그 근거를 알�
 ame_flow -> ame_doctor -> ame_setup execute=false -> 사용자 승인 -> ame_setup execute=true -> ame_load -> memory_query/memory_search
 ```
 
-사양 진단과 모델 추천 단계에서는 corpus가 필요 없습니다. 따라서 `openclaw` 같은 예시 corpus 이름을 임의로 조회하면 잘못된 흐름입니다.
+사양 진단과 모델 추천 단계에서는 corpus가 필요 없습니다. 문서 메모리 구축 단계에서만 corpus 이름을 정하면 됩니다.
 
 ## 4. 단계별 응답 템플릿
 
@@ -194,7 +194,7 @@ Codex/Claude Code는 AME MCP를 통해 다음 도구를 사용할 수 있습니�
 
 모델 다운로드는 시간과 디스크를 사용합니다. Codex/Claude Code가 먼저 다운로드 계획을 보여준 뒤, 사용자가 승인하면 실행하는 흐름을 권장합니다.
 
-사양 진단이나 모델 추천은 corpus가 필요 없는 bootstrap MCP에서 처리합니다. 사용자가 직접 만든 corpus가 아니라면 `openclaw` 같은 예시 corpus 이름을 임의로 사용하지 않아야 합니다.
+사양 진단이나 모델 추천은 corpus가 필요 없는 bootstrap MCP에서 처리합니다. 문서 메모리 구축 단계에서만 corpus 이름과 문서 폴더가 필요합니다.
 
 ## CLI로 직접 쓰고 싶을 때
 
@@ -221,7 +221,7 @@ ame> /exit
 가상환경은 패키지를 격리해서 설치하기 위한 용도입니다.
 MCP 설정을 한 번 추가한 뒤에는 Codex/Claude Code가 `ame` 명령을 직접 실행합니다.
 
-예전에 `0.1.0`을 설치한 적이 있으면 `python -m pip install adaptive-memory-engine`이 최신 버전으로 올리지 않고 기존 설치본을 그대로 사용할 수 있습니다. 이 경우에는 업그레이드를 명시합니다.
+이미 설치한 적이 있다면 업그레이드를 명시합니다.
 
 ```bash
 python -m pip install --upgrade adaptive-memory-engine
@@ -278,8 +278,6 @@ ame mcp stdio my-docs
 ```
 
 대부분의 사용자는 직접 `ame mcp stdio`를 실행하지 않고, `ame connect --client codex` 또는 `ame connect --client claude`로 출력된 설정을 클라이언트에 넣으면 됩니다.
-
-`ame mcp stdio`는 표준 MCP `Content-Length` 프레이밍과 newline JSON-RPC를 모두 지원합니다.
 
 ## Bronze/Silver/Gold 구조
 

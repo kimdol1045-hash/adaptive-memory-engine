@@ -121,9 +121,8 @@ The expected flow is:
 ame_flow -> ame_doctor -> ame_setup execute=false -> user approval -> ame_setup execute=true -> ame_load -> memory_query/memory_search
 ```
 
-Hardware diagnosis and model recommendation do not require a corpus. If an
-agent tries an example corpus such as `openclaw` during setup diagnosis, that is
-the wrong flow.
+Hardware diagnosis and model recommendation do not require a corpus. Choose a
+corpus name only when building memory from documents.
 
 ## 4. Response Templates
 
@@ -204,8 +203,8 @@ Model downloads can take time and disk space. The agent should show the plan
 first, then run downloads after user approval.
 
 Hardware diagnosis and model recommendations should use bootstrap MCP because
-they do not require a corpus. Agents should not invent example corpus IDs such
-as `openclaw` unless the user explicitly provided that corpus.
+they do not require a corpus. A corpus name and document folder are only needed
+when building memory.
 
 ## Manual CLI Use
 
@@ -232,8 +231,7 @@ ame> /exit
 The virtual environment is only used to isolate the Python package install. Once
 the MCP config is added, Codex or Claude Code launches the `ame` command.
 
-If you previously installed `0.1.0`, `python -m pip install adaptive-memory-engine`
-may keep the old package. Upgrade explicitly:
+If AME was already installed, upgrade explicitly:
 
 ```bash
 python -m pip install --upgrade adaptive-memory-engine
@@ -290,9 +288,6 @@ ame mcp stdio my-docs
 
 Most users do not need to run these manually. Use `ame connect --client codex`
 or `ame connect --client claude` and paste the printed config into the client.
-
-`ame mcp stdio` supports both standard MCP `Content-Length` framing and newline
-JSON-RPC.
 
 ## Bronze/Silver/Gold
 
