@@ -151,7 +151,7 @@ def test_mcp_stdio_accepts_content_length_framing() -> None:
     _headers, payload = raw.split("\r\n\r\n", 1)
     response = json.loads(payload)
     assert response["result"]["serverInfo"]["name"] == "adaptive-memory-engine"
-    assert response["result"]["serverInfo"]["version"] == "0.1.12"
+    assert response["result"]["serverInfo"]["version"] == "0.1.13"
     assert "Use AME MCP tools before shell commands" in response["result"]["instructions"]
 
 
@@ -275,6 +275,41 @@ def test_bootstrap_mcp_reports_load_job_status(tmp_path: Path, monkeypatch) -> N
     text = status["result"]["content"][0]["text"]
     assert '"status": "completed"' in text
     assert "memory_search" in text
+
+
+def test_bootstrap_mcp_marks_dead_load_job_as_stale(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    from ame.agent.load_jobs import write_job
+
+    write_job(
+        {
+            "job_id": "load-project-20260612000000-stale",
+            "kind": "load",
+            "status": "running",
+            "pid": 999999999,
+            "corpus_id": "project",
+            "source_path": str(tmp_path),
+            "mode": "llm",
+        }
+    )
+    server = McpStdioServer()
+
+    status = server.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "ame_load_status",
+                "arguments": {"job_id": "load-project-20260612000000-stale"},
+            },
+        }
+    )
+
+    assert status and status["result"]["isError"] is False
+    text = status["result"]["content"][0]["text"]
+    assert '"status": "stale"' in text
+    assert "worker process is no longer running" in text
 
 
 def test_bootstrap_mcp_exposes_flow_response_templates(tmp_path: Path, monkeypatch) -> None:

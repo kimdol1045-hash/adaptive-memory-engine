@@ -74,6 +74,7 @@ class LlmExtractor:
         assert self.client is not None
         retry_payload = dict(payload)
         last_error: str | None = None
+        last_raw: dict | None = None
         for attempt in range(self.max_retries + 1):
             if last_error:
                 retry_payload["retry_feedback"] = (
@@ -81,13 +82,34 @@ class LlmExtractor:
                     f"Validation error: {last_error[:500]}"
                 )
             raw = self.client.complete_json(MEMORY_EXTRACTION_PROMPT, retry_payload)
+            last_raw = raw
             try:
                 return RawLlmExtraction.model_validate(raw)
             except ValidationError as exc:
                 last_error = str(exc)
                 if attempt >= self.max_retries:
-                    raise LlmClientError(f"LLM extraction schema validation failed: {last_error}") from exc
+                    return self._best_effort_extraction(last_raw)
         raise LlmClientError("LLM extraction schema validation failed.")
+
+    def _best_effort_extraction(self, raw: dict | None) -> RawLlmExtraction:
+        if not isinstance(raw, dict):
+            raise LlmClientError("LLM extraction schema validation failed.")
+        return RawLlmExtraction(
+            entities=self._valid_rows(raw.get("entities"), RawLlmEntity),
+            relations=self._valid_rows(raw.get("relations"), RawLlmRelation),
+            decisions=self._valid_rows(raw.get("decisions"), RawLlmDecision),
+        )
+
+    def _valid_rows(self, rows: object, model: type[BaseModel]) -> list:
+        if not isinstance(rows, list):
+            return []
+        valid = []
+        for row in rows:
+            try:
+                valid.append(model.model_validate(row))
+            except ValidationError:
+                continue
+        return valid
 
     def _entities(self, doc: BronzeDocument, rows: list[RawLlmEntity]) -> list[SilverEntity]:
         entities: list[SilverEntity] = []

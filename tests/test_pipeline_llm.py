@@ -7,7 +7,11 @@ from ame.pipeline import MemoryPipeline
 
 
 class FakeClient:
+    def __init__(self) -> None:
+        self.source_ids: list[str] = []
+
     def complete_json(self, prompt: str, payload: dict) -> dict:
+        self.source_ids.append(str(payload.get("source_id")))
         return {
             "entities": [
                 {"type": "Project", "name": "OpenClaw", "span": "OpenClaw", "confidence": 0.9},
@@ -49,6 +53,7 @@ def test_pipeline_llm_mode_uses_hardware_routed_default_model(tmp_path: Path, mo
 
     class RoutedFakeClient(FakeClient):
         def __init__(self, model: str | None = None, base_url: str | None = None) -> None:
+            super().__init__()
             captured["model"] = model
             captured["base_url"] = base_url
 
@@ -59,3 +64,27 @@ def test_pipeline_llm_mode_uses_hardware_routed_default_model(tmp_path: Path, mo
     assert report.mode == "llm"
     assert captured["model"] == "qwen3:8b"
     assert captured["base_url"] == "http://127.0.0.1:11434"
+
+
+def test_pipeline_only_processes_current_source_documents(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    ensure_runtime_layout()
+    corpus_root = create_corpus("current-only")
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    (first / "old.md").write_text("# Old\nOld project decided to use LegacyRAG.\n", encoding="utf-8")
+    (second / "new.md").write_text("# New\nNew project decided to use LightRAG.\n", encoding="utf-8")
+    first_client = FakeClient()
+    second_client = FakeClient()
+
+    first_report = MemoryPipeline().ingest("current-only", first, mode="llm", llm_client=first_client)
+    second_report = MemoryPipeline().ingest("current-only", second, mode="llm", llm_client=second_client)
+    state = CorpusStateStore(corpus_root).read()
+
+    assert first_report.documents == 1
+    assert second_report.documents == 2
+    assert first_client.source_ids == ["old.md"]
+    assert second_client.source_ids == ["new.md"]
+    assert {document.source_id for document in state.documents} == {"old.md", "new.md"}

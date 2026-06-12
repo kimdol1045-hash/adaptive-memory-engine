@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.13 - 2026-06-12
+
+- Process only documents from the current source path during ingest so stale large Bronze documents in the same corpus do not get reprocessed.
+- Make local LLM extraction tolerate invalid rows from model JSON output instead of failing the entire document build.
+- Mark dead load worker jobs as `stale` instead of leaving them reported as `running`.
+
 ## 0.1.12 - 2026-06-12
 
 - Removed deterministic mode from the user-facing CLI and MCP memory-build flow.

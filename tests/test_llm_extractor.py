@@ -1,5 +1,4 @@
 from ame.bronze.schema import BronzeDocument
-from ame.core.errors import LlmClientError
 from ame.silver.llm_extractor import LlmExtractor
 
 
@@ -34,9 +33,18 @@ class RetryClient:
         }
 
 
-class InvalidClient:
+class InvalidEntityClient:
     def complete_json(self, prompt: str, payload: dict) -> dict:
         return {"entities": [{"type": "BadType", "name": "OpenClaw", "confidence": 0.9}]}
+
+
+class InvalidDecisionStatusClient:
+    def complete_json(self, prompt: str, payload: dict) -> dict:
+        return {
+            "entities": [{"type": "Tool", "name": "LightRAG", "span": "LightRAG", "confidence": 0.9}],
+            "relations": [],
+            "decisions": [{"title": "Schema required field", "status": "required", "confidence": 0.8}],
+        }
 
 
 def bronze_doc() -> BronzeDocument:
@@ -70,10 +78,17 @@ def test_llm_extractor_retries_invalid_schema() -> None:
     assert any(entity.name == "OpenClaw" for entity in entities)
 
 
-def test_llm_extractor_raises_after_schema_retry_exhausted() -> None:
-    try:
-        LlmExtractor(InvalidClient(), max_retries=0).extract(bronze_doc())
-    except LlmClientError as exc:
-        assert "schema validation failed" in str(exc)
-    else:
-        raise AssertionError("expected LlmClientError")
+def test_llm_extractor_skips_invalid_rows_after_schema_retry_exhausted() -> None:
+    entities, relations, decisions = LlmExtractor(InvalidEntityClient(), max_retries=0).extract(bronze_doc())
+
+    assert entities
+    assert relations
+    assert decisions
+
+
+def test_llm_extractor_skips_invalid_decision_status_without_failing_document() -> None:
+    entities, relations, decisions = LlmExtractor(InvalidDecisionStatusClient(), max_retries=0).extract(bronze_doc())
+
+    assert any(entity.name == "LightRAG" for entity in entities)
+    assert all(decision.status in {"proposed", "accepted", "rejected", "superseded"} for decision in decisions)
+    assert all(decision.title != "Schema required field" for decision in decisions)

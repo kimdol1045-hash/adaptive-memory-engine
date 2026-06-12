@@ -59,14 +59,21 @@ class MemoryPipeline:
         for ref in connector.scan(source_path):
             doc = bronze.put(connector.load(corpus_id, ref))
             docs_by_id[doc.id] = doc
-        docs = list(bronze.list())
-        doc_map = {doc.id: doc for doc in docs}
-        entities = []
-        relations = []
-        decisions = []
-        rejected: list[dict] = []
+        current_docs = list(docs_by_id.values())
+        all_docs = list(bronze.list())
+        doc_map = {doc.id: doc for doc in current_docs}
+        current_doc_ids = set(docs_by_id)
+        silver = SilverStore(root)
+        entities = [row for row in silver.entities() if not _row_uses_sources(row, current_doc_ids)]
+        relations = [row for row in silver.relations() if not _row_uses_sources(row, current_doc_ids)]
+        decisions = [row for row in silver.decisions() if not _row_uses_sources(row, current_doc_ids)]
+        existing_rationales = [row for row in silver.rationales() if not _row_uses_sources(row, current_doc_ids)]
+        rejected: list[dict] = [
+            row for row in _existing_rejected(root) if not _rejected_uses_sources(row, current_doc_ids)
+        ]
+        new_decisions = []
 
-        for doc in docs:
+        for doc in current_docs:
             extracted_entities, extracted_relations, extracted_decisions = extractor.extract(doc)
             valid_entities = []
             for entity in extracted_entities:
@@ -109,14 +116,15 @@ class MemoryPipeline:
                 relations.append(relation)
             entities.extend(valid_entities)
             decisions.extend(valid_decisions)
+            new_decisions.extend(valid_decisions)
 
-        rationales = RationaleExtractor().extract(docs, decisions)
-        SilverStore(root).replace(entities, relations, decisions, rejected, rationales)
+        rationales = existing_rationales + RationaleExtractor().extract(current_docs, new_decisions)
+        silver.replace(entities, relations, decisions, rejected, rationales)
         nodes, edges, timeline = GoldBuilder().build(entities, relations, decisions, rationales)
         GoldStore(root).replace(nodes, edges, timeline)
-        kg_path = LightRagAdapter(root).sync(nodes, edges, docs)
+        kg_path = LightRagAdapter(root).sync(nodes, edges, current_docs)
         counts = {
-            "documents": len(docs),
+            "documents": len(all_docs),
             "silver_entities": len(entities),
             "silver_relations": len(relations),
             "silver_decisions": len(decisions),
@@ -130,14 +138,14 @@ class MemoryPipeline:
             mode=mode,
             documents=[
                 IngestedDocumentState(id=doc.id, source_id=doc.source_id, content_hash=doc.content_hash)
-                for doc in docs
+                for doc in all_docs
             ],
             counts=counts,
         )
 
         return IngestReport(
             mode=mode,
-            documents=len(docs),
+            documents=len(all_docs),
             silver_entities=len(entities),
             silver_relations=len(relations),
             silver_decisions=len(decisions),
@@ -153,3 +161,35 @@ class MemoryPipeline:
         profile = HardwareProfiler().profile(Path.home())
         plan = ModelRouter(registry).plan(profile)
         return OllamaClient(model=plan.models.extract.model, base_url=config.lightrag.ollama_host)
+
+
+def _row_uses_sources(row, source_ids: set[str]) -> bool:
+    return bool(set(getattr(row, "source_ids", []) or []) & source_ids)
+
+
+def _existing_rejected(root: Path) -> list[dict]:
+    path = root / "silver" / "rejected.jsonl"
+    if not path.exists():
+        return []
+    import json
+
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return rows
+
+
+def _rejected_uses_sources(row: dict, source_ids: set[str]) -> bool:
+    values = set()
+    for key in ["source_id", "source_ids", "id", "subject", "object"]:
+        value = row.get(key)
+        if isinstance(value, str):
+            values.add(value)
+        elif isinstance(value, list):
+            values.update(str(item) for item in value)
+    return bool(values & source_ids)

@@ -47,7 +47,10 @@ def read_load_job(job_id: str) -> dict[str, Any]:
         raise ValueError(f"AME load job does not exist: {job_id}")
     job = json.loads(path.read_text(encoding="utf-8"))
     if job.get("status") == "running" and not _pid_running(job.get("pid")):
+        job["status"] = "stale"
         job["process_alive"] = False
+        job["error"] = "Load worker process is no longer running, but the job did not write a final status."
+        write_job(job)
     elif job.get("status") == "running":
         job["process_alive"] = True
     job["stdout_tail"] = _tail(Path(str(job.get("stdout_path", ""))))
@@ -112,4 +115,14 @@ def _pid_running(pid: Any) -> bool:
         os.kill(pid, 0)
     except OSError:
         return False
+    if os.name != "nt":
+        try:
+            result = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, check=False)
+        except OSError:
+            return True
+        if result.returncode != 0:
+            return False
+        state = result.stdout.strip()
+        if state.startswith("Z"):
+            return False
     return True

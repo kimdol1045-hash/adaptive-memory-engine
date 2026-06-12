@@ -20,7 +20,7 @@ from ame.models.router import ModelRouter
 from ame.pipeline import MemoryPipeline
 
 
-SERVER_VERSION = "0.1.12"
+SERVER_VERSION = "0.1.13"
 
 MCP_INSTRUCTIONS = "\n".join(
     [
@@ -421,6 +421,11 @@ class BootstrapMcpToolbox:
             payload["next_steps"] = [
                 "Report the error and stderr_tail to the user.",
                 "Report the error and ask whether to retry with a smaller source folder or after reducing document chunk size.",
+            ]
+        elif status == "stale":
+            payload["next_steps"] = [
+                "Report that the worker process is no longer running and no final status was written.",
+                "Start a new ame_load job after confirming the previous process is gone.",
             ]
         return payload
 
