@@ -151,7 +151,7 @@ def test_mcp_stdio_accepts_content_length_framing() -> None:
     _headers, payload = raw.split("\r\n\r\n", 1)
     response = json.loads(payload)
     assert response["result"]["serverInfo"]["name"] == "adaptive-memory-engine"
-    assert response["result"]["serverInfo"]["version"] == "0.1.15"
+    assert response["result"]["serverInfo"]["version"] == "0.1.16"
     assert "Use AME MCP tools before shell commands" in response["result"]["instructions"]
 
 
@@ -200,6 +200,8 @@ def test_bootstrap_mcp_can_load_and_query_without_bound_corpus(tmp_path: Path, m
     tool_names = {tool["name"] for tool in tools["result"]["tools"]}  # type: ignore[index]
     assert "ame_doctor" in tool_names
     assert "ame_flow" in tool_names
+    assert "ame_corpus_suggest" in tool_names
+    assert "ame_load_auto" in tool_names
     assert "ame_load_plan" in tool_names
     assert "ame_load" in tool_names
     assert "ame_load_status" in tool_names
@@ -267,6 +269,29 @@ def test_bootstrap_mcp_load_plan_warns_for_large_sources(tmp_path: Path, monkeyp
     assert '"status": "planned"' in text
     assert '"risk": "high"' in text
     assert "bronze_chunks" in text
+
+
+def test_bootstrap_mcp_can_suggest_corpus_without_user_classification(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    source = tmp_path / "planning"
+    source.mkdir()
+    (source / "plan.md").write_text("# Plan\nOpenClaw uses LightRAG.\n", encoding="utf-8")
+    server = McpStdioServer()
+
+    response = server.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "ame_corpus_suggest", "arguments": {"source_path": str(source)}},
+        }
+    )
+
+    assert response and response["result"]["isError"] is False
+    text = response["result"]["content"][0]["text"]
+    assert '"status": "suggested"' in text
+    assert '"action": "create_new"' in text
+    assert '"selected_corpus_id": "planning"' in text
 
 
 def test_bootstrap_mcp_reports_load_job_status(tmp_path: Path, monkeypatch) -> None:

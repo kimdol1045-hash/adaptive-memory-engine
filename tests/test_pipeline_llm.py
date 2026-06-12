@@ -1,10 +1,12 @@
 from pathlib import Path
 
+from ame.agent.corpus_router import suggest_corpus
 from ame.core.corpus import create_corpus
 from ame.core.errors import LlmClientError
 from ame.core.paths import ensure_runtime_layout
 from ame.core.state import CorpusStateStore
 from ame.bronze.store import BronzeStore
+from ame.gold.store import GoldStore
 from ame.pipeline import MemoryPipeline
 
 
@@ -28,6 +30,17 @@ class FakeClient:
 class FailingClient:
     def complete_json(self, prompt: str, payload: dict) -> dict:
         raise LlmClientError("test extraction failure")
+
+
+class ContentEntityClient:
+    def complete_json(self, prompt: str, payload: dict) -> dict:
+        content = str(payload.get("content") or "")
+        name = "NewMemoryPolicy" if "NewMemoryPolicy" in content else "OldMemoryPolicy"
+        return {
+            "entities": [{"type": "Concept", "name": name, "span": name, "confidence": 0.9}],
+            "relations": [],
+            "decisions": [],
+        }
 
 
 def test_pipeline_llm_mode_uses_client_and_records_state(tmp_path: Path, monkeypatch) -> None:
@@ -95,6 +108,48 @@ def test_pipeline_only_processes_current_source_documents(tmp_path: Path, monkey
     assert first_client.source_ids == ["old.md"]
     assert second_client.source_ids == ["new.md"]
     assert {document.source_id for document in state.documents} == {"old.md", "new.md"}
+
+
+def test_pipeline_updates_same_source_as_current_view_and_keeps_history(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    ensure_runtime_layout()
+    corpus_root = create_corpus("updates")
+    source = tmp_path / "notes"
+    source.mkdir()
+    note = source / "policy.md"
+    note.write_text("# Policy\nOldMemoryPolicy is the current memory policy.\n", encoding="utf-8")
+
+    MemoryPipeline().ingest("updates", source, mode="llm", llm_client=ContentEntityClient())
+    note.write_text("# Policy\nNewMemoryPolicy is the current memory policy.\n", encoding="utf-8")
+    MemoryPipeline().ingest("updates", source, mode="llm", llm_client=ContentEntityClient())
+
+    docs = list(BronzeStore(corpus_root).list())
+    active_docs = [doc for doc in docs if doc.metadata.get("active", True) is not False]
+    inactive_docs = [doc for doc in docs if doc.metadata.get("active", True) is False]
+    node_names = {node.name for node in GoldStore(corpus_root).nodes()}
+
+    assert len(docs) == 2
+    assert len(active_docs) == 1
+    assert len(inactive_docs) == 1
+    assert "NewMemoryPolicy" in node_names
+    assert "OldMemoryPolicy" not in node_names
+    assert list((corpus_root / "history" / "source_updates").glob("*.json"))
+
+
+def test_corpus_suggestion_routes_same_source_to_existing_corpus(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    ensure_runtime_layout()
+    create_corpus("planning")
+    source = tmp_path / "planning"
+    source.mkdir()
+    (source / "plan.md").write_text("# Plan\nOpenClaw decided to use LightRAG.\n", encoding="utf-8")
+    MemoryPipeline().ingest("planning", source, mode="llm", llm_client=FakeClient())
+
+    suggestion = suggest_corpus(source)
+
+    assert suggestion.action == "update_existing"
+    assert suggestion.selected_corpus_id == "planning"
+    assert suggestion.confidence >= 0.72
 
 
 def test_pipeline_rolls_back_new_corpus_outputs_when_llm_ingest_fails(tmp_path: Path, monkeypatch) -> None:

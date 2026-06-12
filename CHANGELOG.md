@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.16 - 2026-06-12
+
+- Add automatic corpus suggestion and `ame_load_auto` so users can provide only a source path while AME decides whether to update an existing corpus or create a new one.
+- Treat same-source re-ingest as a versioned update: older Bronze chunks are marked inactive, current Silver/Gold views are rebuilt from the latest source, and previous Silver/Gold data is archived under corpus history.
+- Filter inactive Bronze documents from default query results so updated content does not mix with superseded content.
+- Add CLI `ame suggest` and `ame load-auto` mirrors for the MCP auto-classification flow.
+
 ## 0.1.15 - 2026-06-12
 
 - Add `ame_load_plan` to estimate file count, Bronze chunk count, local LLM calls, runtime risk, and safer load recommendations before ingest starts.

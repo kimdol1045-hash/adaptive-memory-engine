@@ -439,7 +439,7 @@ class QueryEngine:
         matches: list[str] = []
         seen_matches: set[str] = set()
         sources_by_id: dict[str, QuerySource] = {}
-        docs_by_id = {doc.id: doc for doc in self.bronze.list()}
+        docs_by_id = {doc.id: doc for doc in self.bronze.list() if doc.metadata.get("active", True) is not False}
         nodes = self.gold.nodes()
         edges = self.gold.edges()
         timeline = SupersedesResolver().resolve(self.gold.timeline(), edges)

@@ -11,6 +11,7 @@ from typing import Literal
 import typer
 
 from ame import __version__
+from ame.agent.corpus_router import suggest_corpus
 from ame.agent.load_jobs import cancel_load_job, cleanup_load_artifacts, latest_load_job, read_load_job
 from ame.agent.load_plan import build_load_plan
 from ame.agent.mcp import BootstrapMcpToolbox, LocalMcpToolbox, McpStdioServer
@@ -228,6 +229,27 @@ def load(
 def plan_load(source_path: Path, profile: str | None = None) -> None:
     plan = build_load_plan(source_path, profile)
     typer.echo(json.dumps(plan.model_dump(mode="json"), ensure_ascii=False, indent=2))
+
+
+@app.command("suggest")
+def suggest(source_path: Path, profile: str | None = None) -> None:
+    suggestion = suggest_corpus(source_path, profile)
+    typer.echo(json.dumps(suggestion.model_dump(mode="json"), ensure_ascii=False, indent=2))
+
+
+@app.command("load-auto")
+def load_auto(
+    source_path: Path,
+    profile: str | None = None,
+    background: bool = typer.Option(True, "--background/--foreground"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+) -> None:
+    toolbox = BootstrapMcpToolbox()
+    result = toolbox.call(
+        "ame_load_auto",
+        {"source_path": str(source_path), "profile": profile, "background": background, "dry_run": dry_run},
+    )
+    typer.echo(json.dumps(result, ensure_ascii=False, indent=2, default=str))
 
 
 @app.command("load-status")

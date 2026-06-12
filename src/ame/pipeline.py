@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import shutil
 from collections.abc import Callable
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -103,9 +105,24 @@ class MemoryPipeline:
             total=len(refs),
             message="Scanning source documents and writing Bronze chunks.",
         )
+        incoming_docs = [connector.load(corpus_id, ref) for ref in refs]
+        incoming_source_roots = {_doc_root_source_id(doc) for doc in incoming_docs}
+        stale_docs = [doc for doc in bronze.list() if _doc_root_source_id(doc) in incoming_source_roots]
+        stale_doc_ids = {doc.id for doc in stale_docs}
+        if stale_doc_ids:
+            bronze.mark_inactive(stale_doc_ids)
+            _emit(
+                progress,
+                stage="bronze",
+                current=0,
+                total=len(refs),
+                replaced_documents=len(stale_doc_ids),
+                message="Marked previous Bronze chunks as inactive for updated source files.",
+            )
         docs_by_id = {}
-        for index, ref in enumerate(refs, start=1):
-            doc = bronze.put(connector.load(corpus_id, ref))
+        for index, (ref, incoming_doc) in enumerate(zip(refs, incoming_docs, strict=True), start=1):
+            doc = bronze.put(incoming_doc)
+            bronze.mark_active([doc.id])
             docs_by_id[doc.id] = doc
             _emit(
                 progress,
@@ -118,12 +135,30 @@ class MemoryPipeline:
         current_docs = list(docs_by_id.values())
         all_docs = list(bronze.list())
         doc_map = {doc.id: doc for doc in current_docs}
-        current_doc_ids = set(docs_by_id)
+        current_doc_ids = set(docs_by_id) | stale_doc_ids
         silver = SilverStore(root)
-        entities = [row for row in silver.entities() if not _row_uses_sources(row, current_doc_ids)]
-        relations = [row for row in silver.relations() if not _row_uses_sources(row, current_doc_ids)]
-        decisions = [row for row in silver.decisions() if not _row_uses_sources(row, current_doc_ids)]
-        existing_rationales = [row for row in silver.rationales() if not _row_uses_sources(row, current_doc_ids)]
+        existing_entities = silver.entities()
+        existing_relations = silver.relations()
+        existing_decisions = silver.decisions()
+        existing_rationales_all = silver.rationales()
+        existing_rejected = _existing_rejected(root)
+        if stale_doc_ids:
+            _archive_source_update(
+                root,
+                corpus_id=corpus_id,
+                source_roots=incoming_source_roots,
+                previous_docs=stale_docs,
+                current_docs=current_docs,
+                entities=[row for row in existing_entities if _row_uses_sources(row, stale_doc_ids)],
+                relations=[row for row in existing_relations if _row_uses_sources(row, stale_doc_ids)],
+                decisions=[row for row in existing_decisions if _row_uses_sources(row, stale_doc_ids)],
+                rationales=[row for row in existing_rationales_all if _row_uses_sources(row, stale_doc_ids)],
+                rejected=[row for row in existing_rejected if _rejected_uses_sources(row, stale_doc_ids)],
+            )
+        entities = [row for row in existing_entities if not _row_uses_sources(row, current_doc_ids)]
+        relations = [row for row in existing_relations if not _row_uses_sources(row, current_doc_ids)]
+        decisions = [row for row in existing_decisions if not _row_uses_sources(row, current_doc_ids)]
+        existing_rationales = [row for row in existing_rationales_all if not _row_uses_sources(row, current_doc_ids)]
         rejected: list[dict] = [
             row for row in _existing_rejected(root) if not _rejected_uses_sources(row, current_doc_ids)
         ]
@@ -273,6 +308,75 @@ def _rejected_uses_sources(row: dict, source_ids: set[str]) -> bool:
         elif isinstance(value, list):
             values.update(str(item) for item in value)
     return bool(values & source_ids)
+
+
+def _doc_root_source_id(doc) -> str:
+    root = doc.metadata.get("root_source_id") or doc.metadata.get("source_file")
+    if isinstance(root, str) and root:
+        return root
+    return str(doc.source_id).split("#", 1)[0]
+
+
+def _archive_source_update(
+    root: Path,
+    *,
+    corpus_id: str,
+    source_roots: set[str],
+    previous_docs: list,
+    current_docs: list,
+    entities: list,
+    relations: list,
+    decisions: list,
+    rationales: list,
+    rejected: list[dict],
+) -> None:
+    if not previous_docs:
+        return
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    history_root = root / "history" / "source_updates"
+    history_root.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "corpus_id": corpus_id,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "source_roots": sorted(source_roots),
+        "previous_bronze_docs": [_doc_history(doc) for doc in previous_docs],
+        "current_bronze_docs": [_doc_history(doc) for doc in current_docs],
+        "archived_silver": {
+            "entities": [_dump_model(row) for row in entities],
+            "relations": [_dump_model(row) for row in relations],
+            "decisions": [_dump_model(row) for row in decisions],
+            "rationales": [_dump_model(row) for row in rationales],
+            "rejected": rejected,
+        },
+        "gold_snapshot": _snapshot_gold(root, timestamp),
+    }
+    (history_root / f"{timestamp}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+
+
+def _doc_history(doc) -> dict:
+    return {
+        "id": doc.id,
+        "source_id": doc.source_id,
+        "content_hash": doc.content_hash,
+        "active": doc.metadata.get("active", True),
+        "created_at": doc.created_at,
+    }
+
+
+def _dump_model(row) -> dict:
+    if hasattr(row, "model_dump"):
+        return row.model_dump(mode="json")
+    return dict(row)
+
+
+def _snapshot_gold(root: Path, timestamp: str) -> str | None:
+    source = root / "gold"
+    if not source.exists() or not any(source.iterdir()):
+        return None
+    target = root / "history" / "gold_snapshots" / timestamp
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, target, dirs_exist_ok=True)
+    return str(target)
 
 
 def _emit(callback: ProgressCallback | None, **event) -> None:

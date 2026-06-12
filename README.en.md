@@ -7,7 +7,7 @@ The preferred UX is agent-first: connect AME through MCP, then ask Codex or
 Claude Code to diagnose hardware, recommend models, build memory, and answer
 questions in natural language.
 
-Current status: alpha, distributed through PyPI. Current version: `0.1.15`.
+Current status: alpha, distributed through PyPI. Current version: `0.1.16`.
 
 ## 1. Install
 
@@ -111,11 +111,19 @@ After reviewing the plan, approve installation:
 Approved. Install the required models.
 ```
 
-Then build memory from a folder. AME should first call `ame_load_plan` to inspect
-size and risk, then start `ame_load` if the plan looks acceptable:
+Then build memory from a folder. AME can first call `ame_corpus_suggest` to
+decide whether this should update an existing corpus or create a new one. It then
+calls `ame_load_plan` to inspect size and risk, and starts `ame_load_auto` or
+`ame_load` if the plan looks acceptable:
 
 ```text
 Build memory named my-docs from /Users/me/Documents/planning.
+```
+
+You can also leave corpus classification to AME:
+
+```text
+Classify /Users/me/Documents/planning automatically and build memory from it.
 ```
 
 After memory is built, ask grounded questions:
@@ -127,7 +135,7 @@ Using my-docs memory, tell me the current decisions and their rationale.
 The expected flow is:
 
 ```text
-ame_flow -> ame_doctor -> ame_setup execute=false -> user approval -> ame_setup execute=true -> ame_load_plan -> ame_load -> ame_load_status -> memory_query/memory_search
+ame_flow -> ame_doctor -> ame_setup execute=false -> user approval -> ame_setup execute=true -> ame_corpus_suggest -> ame_load_plan -> ame_load_auto/ame_load -> ame_load_status -> memory_query/memory_search
 ```
 
 Hardware diagnosis and model recommendation do not require a corpus. Choose a
@@ -223,7 +231,9 @@ AME exposes these tools to Codex or Claude Code:
 - `ame_doctor`: diagnose hardware and local model status
 - `ame_flow`: return the step-by-step flow and response templates
 - `ame_setup`: plan or execute recommended model downloads
+- `ame_corpus_suggest`: suggest whether a source path updates an existing corpus or creates a new corpus
 - `ame_load_plan`: inspect source size, chunk count, local LLM calls, and load risk before ingest
+- `ame_load_auto`: automatically choose a corpus and start a background memory build
 - `ame_load`: build Bronze/Silver/Gold memory from a folder
 - `ame_load_status`: check long-running memory build jobs and current stage
 - `ame_load_cancel`: cancel a background memory build without replacing committed corpus data
@@ -237,8 +247,14 @@ Model downloads can take time and disk space. The agent should show the plan
 first, then run downloads after user approval.
 
 Hardware diagnosis and model recommendations should use bootstrap MCP because
-they do not require a corpus. A corpus name and document folder are only needed
-when building memory.
+they do not require a corpus. During memory build, users can either provide a
+corpus name or let AME choose whether to update an existing corpus or create a
+new one.
+
+When the same source is ingested again, older Bronze chunks are not deleted.
+They are marked inactive and kept as history. Default search and answers use the
+latest active Bronze/Silver/Gold view, while previous Silver/Gold data is stored
+under corpus history.
 
 ## Manual CLI Use
 
@@ -248,7 +264,9 @@ You can also use AME directly:
 ame doctor
 ame setup
 ame setup --execute
+ame suggest ./path/to/markdown-docs
 ame plan ./path/to/markdown-docs
+ame load-auto ./path/to/markdown-docs
 ame load my-docs ./path/to/markdown-docs
 ame load-status --corpus-id my-docs
 ame chat my-docs

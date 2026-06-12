@@ -7,7 +7,7 @@ Codex나 Claude Code가 그 메모리를 보고 답할 수 있게 해주는 loca
 
 사용자가 매번 긴 명령어를 치는 방식보다, **Codex/Claude Code에 AME를 연결하고 자연어로 맡기는 방식**을 우선합니다.
 
-현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.15`입니다.
+현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.16`입니다.
 
 ## 1. 설치
 
@@ -103,10 +103,16 @@ AME MCP를 사용해서 단계별로 진행해줘.
 승인할게. 필요한 모델을 설치해줘.
 ```
 
-문서 폴더와 corpus 이름을 지정해서 메모리를 구축합니다. AME는 먼저 `ame_load_plan`으로 규모와 위험도를 점검한 뒤, 안전하면 `ame_load`를 실행합니다.
+문서 폴더만 알려줘도 됩니다. AME는 `ame_corpus_suggest`로 기존 corpus 업데이트인지 새 corpus 생성인지 먼저 판단하고, `ame_load_plan`으로 규모와 위험도를 점검한 뒤 `ame_load` 또는 `ame_load_auto`를 실행합니다.
 
 ```text
 /Users/me/Documents/planning 폴더를 my-docs라는 이름으로 메모리화해줘.
+```
+
+corpus 이름을 정하지 않고 맡길 수도 있습니다.
+
+```text
+/Users/me/Documents/planning 폴더를 알아서 분류해서 메모리화해줘.
 ```
 
 구축 후에는 메모리 기준으로 질문합니다.
@@ -118,7 +124,7 @@ my-docs 메모리를 기준으로 현재 유효한 결정과 그 근거를 알�
 정상 플로우는 다음 순서입니다.
 
 ```text
-ame_flow -> ame_doctor -> ame_setup execute=false -> 사용자 승인 -> ame_setup execute=true -> ame_load_plan -> ame_load -> ame_load_status -> memory_query/memory_search
+ame_flow -> ame_doctor -> ame_setup execute=false -> 사용자 승인 -> ame_setup execute=true -> ame_corpus_suggest -> ame_load_plan -> ame_load_auto/ame_load -> ame_load_status -> memory_query/memory_search
 ```
 
 사양 진단과 모델 추천 단계에서는 corpus가 필요 없습니다. 문서 메모리 구축 단계에서만 corpus 이름을 정하면 됩니다.
@@ -215,7 +221,9 @@ Codex/Claude Code는 AME MCP를 통해 다음 도구를 사용할 수 있습니�
 - `ame_doctor`: 컴퓨터 사양과 로컬 모델 상태 진단
 - `ame_flow`: 단계별 진행 방식과 응답 템플릿 확인
 - `ame_setup`: 추천 모델 다운로드 계획 또는 실행
+- `ame_corpus_suggest`: 문서 경로를 보고 기존 corpus 업데이트인지 새 corpus 생성인지 추천
 - `ame_load_plan`: 문서 메모리 구축 전 파일 수, chunk 수, LLM 호출 수, 위험도 점검
+- `ame_load_auto`: corpus를 자동 선택한 뒤 background 메모리 구축 시작
 - `ame_load`: 문서 폴더를 Bronze/Silver/Gold 메모리로 구축
 - `ame_load_status`: 오래 걸리는 문서 메모리 구축 job 상태와 현재 진행 단계 확인
 - `ame_load_cancel`: 오래 걸리거나 원치 않는 background job 취소
@@ -227,7 +235,9 @@ Codex/Claude Code는 AME MCP를 통해 다음 도구를 사용할 수 있습니�
 
 모델 다운로드는 시간과 디스크를 사용합니다. Codex/Claude Code가 먼저 다운로드 계획을 보여준 뒤, 사용자가 승인하면 실행하는 흐름을 권장합니다.
 
-사양 진단이나 모델 추천은 corpus가 필요 없는 bootstrap MCP에서 처리합니다. 문서 메모리 구축 단계에서만 corpus 이름과 문서 폴더가 필요합니다.
+사양 진단이나 모델 추천은 corpus가 필요 없는 bootstrap MCP에서 처리합니다. 문서 메모리 구축 단계에서는 corpus 이름을 직접 지정해도 되고, AME가 자동으로 기존 corpus 업데이트 또는 새 corpus 생성을 선택하게 할 수도 있습니다.
+
+같은 source를 다시 넣으면 이전 Bronze는 삭제되지 않고 inactive history로 남습니다. 기본 검색과 답변은 최신 active Bronze/Silver/Gold만 사용하고, 이전 Silver/Gold는 corpus history에 보관됩니다.
 
 ## CLI로 직접 쓰고 싶을 때
 
@@ -237,7 +247,9 @@ Codex/Claude Code는 AME MCP를 통해 다음 도구를 사용할 수 있습니�
 ame doctor
 ame setup
 ame setup --execute
+ame suggest ./path/to/markdown-docs
 ame plan ./path/to/markdown-docs
+ame load-auto ./path/to/markdown-docs
 ame load my-docs ./path/to/markdown-docs
 ame load-status --corpus-id my-docs
 ame chat my-docs

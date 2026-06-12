@@ -8,6 +8,7 @@ from typing import Any, TextIO
 
 from pydantic import BaseModel, Field
 
+from ame.agent.corpus_router import suggest_corpus
 from ame.agent.load_jobs import cancel_load_job, cleanup_load_artifacts, latest_load_job, load_jobs, read_load_job, start_load_job
 from ame.agent.load_plan import build_load_plan
 from ame.agent.memory_api import AgentMemoryAPI
@@ -26,7 +27,7 @@ from ame.silver.store import SilverStore
 from ame.storage.lightrag_adapter import LightRagAdapter
 
 
-SERVER_VERSION = "0.1.15"
+SERVER_VERSION = "0.1.16"
 
 MCP_INSTRUCTIONS = "\n".join(
     [
@@ -34,6 +35,7 @@ MCP_INSTRUCTIONS = "\n".join(
         "Start AME setup conversations with ame_flow, then use ame_doctor for hardware/model diagnosis.",
         "Use ame_setup with execute=false to show a model download plan. Use execute=true only after explicit user approval.",
         "Before loading large local documents, call ame_load_plan to estimate chunk count, risk, and runtime.",
+        "If the user does not provide a corpus name, call ame_corpus_suggest or ame_load_auto instead of asking them to classify manually.",
         "For llm memory builds, ame_load starts a background job by default. Poll ame_load_status before querying the corpus.",
         "If a load job is stuck or no longer wanted, use ame_load_cancel instead of shell kill.",
         "Use bootstrap MCP for hardware/model diagnosis; do not call corpus-bound tools or example corpus IDs for setup diagnosis.",
@@ -151,6 +153,18 @@ BOOTSTRAP_TOOLS = [
         },
     ),
     McpToolSpec(
+        name="ame_corpus_suggest",
+        description="Suggest whether a source path should update an existing corpus or create a new corpus.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "source_path": {"type": "string"},
+                "profile": {"type": "string"},
+            },
+            "required": ["source_path"],
+        },
+    ),
+    McpToolSpec(
         name="ame_load_plan",
         description="Analyze a local source path before memory build and estimate Bronze chunks, local LLM calls, risk, and recommendations.",
         input_schema={
@@ -158,6 +172,20 @@ BOOTSTRAP_TOOLS = [
             "properties": {
                 "source_path": {"type": "string"},
                 "profile": {"type": "string"},
+            },
+            "required": ["source_path"],
+        },
+    ),
+    McpToolSpec(
+        name="ame_load_auto",
+        description="Automatically choose an existing or new corpus for a source path, then start a background local-LLM memory build.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "source_path": {"type": "string"},
+                "profile": {"type": "string"},
+                "background": {"type": "boolean", "description": "Run as a background job. Defaults to true."},
+                "dry_run": {"type": "boolean", "description": "Only return the corpus suggestion and load plan."},
             },
             "required": ["source_path"],
         },
@@ -334,6 +362,24 @@ class BootstrapMcpToolbox:
                 raise ValueError("ame_load_plan requires source_path")
             profile = arguments.get("profile")
             return self._load_plan(Path(source_path).expanduser(), profile=str(profile) if profile else None)
+        if tool_name == "ame_corpus_suggest":
+            source_path = str(arguments.get("source_path") or "").strip()
+            if not source_path:
+                raise ValueError("ame_corpus_suggest requires source_path")
+            profile = arguments.get("profile")
+            return self._corpus_suggest(Path(source_path).expanduser(), profile=str(profile) if profile else None)
+        if tool_name == "ame_load_auto":
+            source_path = str(arguments.get("source_path") or "").strip()
+            if not source_path:
+                raise ValueError("ame_load_auto requires source_path")
+            profile = arguments.get("profile")
+            background = arguments.get("background")
+            return self._load_auto(
+                Path(source_path).expanduser(),
+                profile=str(profile) if profile else None,
+                background=True if background is None else bool(background),
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
         if tool_name == "ame_load":
             corpus_id = str(arguments.get("corpus_id") or "").strip()
             source_path = str(arguments.get("source_path") or "").strip()
@@ -521,6 +567,36 @@ class BootstrapMcpToolbox:
         if plan.risk == "high":
             next_steps.append("Warn the user that this may take a long time on local LLMs and suggest digest/smaller sections if needed.")
         return {"status": "planned", "plan": plan.model_dump(mode="json"), "next_steps": next_steps}
+
+    def _corpus_suggest(self, source_path: Path, *, profile: str | None) -> dict[str, Any]:
+        suggestion = suggest_corpus(source_path, profile)
+        return {
+            "status": "suggested",
+            "suggestion": suggestion.model_dump(mode="json"),
+            "next_steps": [
+                f"Use corpus_id={suggestion.selected_corpus_id!r}.",
+                "If action is update_existing, the current view will be updated while previous source versions stay in history.",
+                "If action is create_new, AME will create a new corpus automatically.",
+            ],
+        }
+
+    def _load_auto(self, source_path: Path, *, profile: str | None, background: bool, dry_run: bool) -> dict[str, Any]:
+        suggestion = suggest_corpus(source_path, profile)
+        if dry_run:
+            return {"status": "planned", "suggestion": suggestion.model_dump(mode="json")}
+        result = self._load(
+            suggestion.selected_corpus_id,
+            source_path,
+            mode="llm",
+            profile=profile,
+            background=background,
+        )
+        result["auto_corpus"] = suggestion.model_dump(mode="json")
+        result["message"] = (
+            f"AME selected corpus {suggestion.selected_corpus_id!r} with action {suggestion.action}. "
+            + str(result.get("message", ""))
+        )
+        return result
 
     def _load_cancel(self, job_id: str) -> dict[str, Any]:
         job = cancel_load_job(job_id)
@@ -944,9 +1020,10 @@ def _ame_flow(*, stage: str = "all") -> dict[str, Any]:
         {
             "stage": "load_plan",
             "user_intents": ["이 파일 메모리화해줘", "이 폴더를 읽히기 전에 확인해줘"],
-            "tool": "ame_load_plan",
+            "tool": "ame_corpus_suggest, then ame_load_plan",
             "branching": [
                 "source_path가 없으면 문서 폴더나 파일 경로를 요청합니다.",
+                "corpus_id가 없으면 ame_corpus_suggest로 기존 corpus 업데이트인지 새 corpus 생성인지 판단합니다.",
                 "risk가 high이면 바로 실행하지 말고 chunk 수, 예상 시간, digest/분할 권장을 먼저 설명합니다.",
                 "risk가 low 또는 medium이면 새 clean corpus_id를 제안하고 사용자의 진행 의사를 확인합니다.",
             ],
@@ -978,10 +1055,10 @@ def _ame_flow(*, stage: str = "all") -> dict[str, Any]:
         {
             "stage": "load",
             "user_intents": ["이 폴더를 메모리화해줘", "문서 읽혀서 RAG 구축해줘"],
-            "tool": "ame_load_plan, then ame_load, then ame_load_status",
+            "tool": "ame_corpus_suggest, then ame_load_plan, then ame_load_auto or ame_load, then ame_load_status",
             "branching": [
                 "source_path가 없으면 문서 폴더 경로를 요청합니다.",
-                "corpus_id가 없으면 짧은 소문자 corpus 이름을 제안합니다.",
+                "corpus_id가 없으면 ame_corpus_suggest 또는 ame_load_auto로 자동 분류합니다.",
                 "처음 보는 source_path이면 ame_load_plan으로 규모와 위험도를 먼저 확인합니다.",
                 "llm 모드의 ame_load는 기본적으로 background job을 시작하므로, 완료될 때까지 ame_load_status를 확인합니다.",
                 "구축이 성공하면 query 단계로 이동합니다.",
