@@ -7,7 +7,7 @@ Codex나 Claude Code가 그 메모리를 보고 답할 수 있게 해주는 loca
 
 사용자가 매번 긴 명령어를 치는 방식보다, **Codex/Claude Code에 AME를 연결하고 자연어로 맡기는 방식**을 우선합니다.
 
-현재는 alpha 단계이며 TestPyPI로 베타 배포 중입니다. 현재 베타 버전은 `0.1.3`입니다.
+현재는 alpha 단계이며 TestPyPI로 베타 배포 중입니다. 현재 베타 버전은 `0.1.4`입니다.
 
 ## 1. 설치
 
@@ -20,7 +20,7 @@ source ~/.ame/bin/activate
 python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  adaptive-memory-engine==0.1.3
+  adaptive-memory-engine==0.1.4
 ```
 
 설치 확인:
@@ -48,6 +48,8 @@ ame connect --client claude
 ```
 
 출력된 JSON을 Codex 또는 Claude Code의 MCP 설정에 추가합니다.
+JSON 안의 `command`에는 `~/.ame/bin/ame` 같은 절대경로가 들어갑니다.
+그래서 MCP 클라이언트가 실행될 때마다 가상환경을 직접 활성화할 필요는 없습니다.
 
 이때 아직 문서 메모리를 만들지 않았어도 괜찮습니다. `ame connect --client ...`는 bootstrap MCP 설정을 출력하므로, Codex/Claude Code가 사양 진단부터 메모리 구축까지 진행할 수 있습니다.
 
@@ -105,6 +107,9 @@ ame> /exit
 ```
 
 ## 설치 문제 해결
+
+가상환경은 패키지를 격리해서 설치하기 위한 용도입니다.
+MCP 설정을 한 번 추가한 뒤에는 Codex/Claude Code가 설정에 들어간 절대경로로 `ame`를 직접 실행합니다.
 
 `ame` 명령이 안 보이면 가상환경을 다시 활성화합니다.
 

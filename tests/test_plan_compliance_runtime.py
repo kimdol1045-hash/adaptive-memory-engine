@@ -151,12 +151,13 @@ def test_bootstrap_mcp_can_load_and_query_without_bound_corpus(tmp_path: Path, m
 
 def test_connect_without_corpus_prints_bootstrap_mcp_config(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    monkeypatch.setattr("ame.cli.main._ame_command", lambda: "/tmp/ame/bin/ame")
     runner = CliRunner()
 
     result = runner.invoke(app, ["connect", "--client", "codex"])
 
     assert result.exit_code == 0
-    assert '"command": "ame"' in result.output
+    assert '"command": "/tmp/ame/bin/ame"' in result.output
     assert '"args": [' in result.output
     assert '"mcp"' in result.output
     assert '"stdio"' in result.output

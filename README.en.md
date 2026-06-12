@@ -7,7 +7,7 @@ The preferred UX is agent-first: connect AME through MCP, then ask Codex or
 Claude Code to diagnose hardware, recommend models, build memory, and answer
 questions in natural language.
 
-Current status: alpha, distributed through TestPyPI. Current beta version: `0.1.3`.
+Current status: alpha, distributed through TestPyPI. Current beta version: `0.1.4`.
 
 ## 1. Install
 
@@ -20,7 +20,7 @@ source ~/.ame/bin/activate
 python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  adaptive-memory-engine==0.1.3
+  adaptive-memory-engine==0.1.4
 ```
 
 Check the install:
@@ -48,6 +48,8 @@ ame connect --client claude
 ```
 
 Add the printed JSON to the client MCP settings.
+The `command` field uses an absolute path such as `~/.ame/bin/ame`, so the MCP
+client does not need the virtual environment to be activated every time.
 
 This works even before a corpus exists. The bootstrap MCP server lets Codex or
 Claude Code diagnose hardware, plan model downloads, build memory, and query the
@@ -108,6 +110,10 @@ ame> /exit
 ```
 
 ## Troubleshooting
+
+The virtual environment is only used to isolate the Python package install. Once
+the MCP config is added, Codex or Claude Code launches `ame` through the absolute
+path in that config.
 
 If `ame` is not found, reactivate the virtual environment:
 

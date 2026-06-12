@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Any, TextIO
@@ -18,7 +19,7 @@ from ame.models.router import ModelRouter
 from ame.pipeline import MemoryPipeline
 
 
-SERVER_VERSION = "0.1.2"
+SERVER_VERSION = "0.1.3"
 
 
 class McpToolSpec(BaseModel):
@@ -323,7 +324,7 @@ class BootstrapMcpToolbox:
     def _connect(self, corpus_id: str, *, client: str) -> dict[str, Any]:
         require_corpus(corpus_id)
         server = {
-            "command": "ame",
+            "command": _ame_command(),
             "args": ["mcp", "stdio", corpus_id],
             "env": {"AME_HOME": str(ame_home().expanduser().resolve())},
         }
@@ -463,3 +464,16 @@ def _with_corpus_argument(tool: McpToolSpec) -> McpToolSpec:
     if "corpus_id" not in required:
         required.append("corpus_id")
     return McpToolSpec(name=tool.name, description=tool.description, input_schema=schema)
+
+
+def _ame_command() -> str:
+    current = Path(sys.argv[0]).expanduser()
+    if current.name == "ame":
+        try:
+            return str(current.resolve())
+        except OSError:
+            return str(current)
+    found = shutil.which("ame")
+    if found:
+        return str(Path(found).expanduser().resolve())
+    return "ame"

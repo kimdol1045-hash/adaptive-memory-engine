@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 - 2026-06-11
+
+- Updated MCP client config generation to use the absolute `ame` executable path.
+- Clarified that virtual environments are only for installation isolation; MCP clients do not need the venv activated after config is added.
+
 ## 0.1.3 - 2026-06-11
 
 - Added `ame` as the recommended CLI command to avoid collisions with older or unrelated `memory` commands.

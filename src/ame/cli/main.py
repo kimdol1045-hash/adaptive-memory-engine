@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
+import sys
 from pathlib import Path
 from typing import Literal
 
@@ -213,7 +215,7 @@ def connect(
     if corpus_id is not None:
         require_corpus(corpus_id)
     server = {
-        "command": "ame",
+        "command": _ame_command(),
         "args": args,
         "env": {"AME_HOME": str(home)},
     }
@@ -828,6 +830,19 @@ def _wait_for_oauth_code(authorization_url: str, redirect_uri: str, state: str, 
 
 def _load_registry() -> ModelRegistry:
     return load_default_registry()
+
+
+def _ame_command() -> str:
+    current = Path(sys.argv[0]).expanduser()
+    if current.name == "ame":
+        try:
+            return str(current.resolve())
+        except OSError:
+            return str(current)
+    found = shutil.which("ame")
+    if found:
+        return str(Path(found).expanduser().resolve())
+    return "ame"
 
 
 def _profile_disk_path() -> Path:
