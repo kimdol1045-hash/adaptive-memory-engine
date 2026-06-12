@@ -133,7 +133,7 @@ def test_mcp_stdio_accepts_content_length_framing() -> None:
     _headers, payload = raw.split("\r\n\r\n", 1)
     response = json.loads(payload)
     assert response["result"]["serverInfo"]["name"] == "adaptive-memory-engine"
-    assert response["result"]["serverInfo"]["version"] == "0.1.10"
+    assert response["result"]["serverInfo"]["version"] == "0.1.11"
     assert "Use AME MCP tools before shell commands" in response["result"]["instructions"]
 
 
@@ -182,10 +182,80 @@ def test_bootstrap_mcp_can_load_and_query_without_bound_corpus(tmp_path: Path, m
     assert "ame_doctor" in tool_names
     assert "ame_flow" in tool_names
     assert "ame_load" in tool_names
+    assert "ame_load_status" in tool_names
     assert "memory_search" in tool_names
     assert load and load["result"]["isError"] is False
     assert search and search["result"]["isError"] is False
     assert "LightRAG" in search["result"]["content"][0]["text"]
+
+
+def test_bootstrap_mcp_starts_llm_load_as_background_job(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+
+    def fake_start_load_job(corpus_id: str, source_path: Path, *, mode: str, profile: str | None) -> dict:
+        return {
+            "job_id": "load-project-20260612000000-test",
+            "corpus_id": corpus_id,
+            "source_path": str(source_path),
+            "mode": mode,
+            "profile": profile,
+        }
+
+    monkeypatch.setattr("ame.agent.mcp.start_load_job", fake_start_load_job)
+    server = McpStdioServer()
+
+    load = server.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "ame_load",
+                "arguments": {"corpus_id": "project", "source_path": str(tmp_path), "mode": "llm"},
+            },
+        }
+    )
+
+    assert load and load["result"]["isError"] is False
+    text = load["result"]["content"][0]["text"]
+    assert '"status": "started"' in text
+    assert '"background": true' in text
+    assert "ame_load_status" in text
+
+
+def test_bootstrap_mcp_reports_load_job_status(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
+    from ame.agent.load_jobs import write_job
+
+    write_job(
+        {
+            "job_id": "load-project-20260612000000-test",
+            "kind": "load",
+            "status": "completed",
+            "corpus_id": "project",
+            "source_path": str(tmp_path),
+            "mode": "llm",
+            "report": {"documents": 2, "gold_nodes": 3, "gold_edges": 4, "rejected": 0},
+        }
+    )
+    server = McpStdioServer()
+
+    status = server.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "ame_load_status",
+                "arguments": {"job_id": "load-project-20260612000000-test"},
+            },
+        }
+    )
+
+    assert status and status["result"]["isError"] is False
+    text = status["result"]["content"][0]["text"]
+    assert '"status": "completed"' in text
+    assert "memory_search" in text
 
 
 def test_bootstrap_mcp_exposes_flow_response_templates(tmp_path: Path, monkeypatch) -> None:

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.11 - 2026-06-12
+
+- Changed MCP `ame_load` in LLM mode to start a background job by default so Codex/Claude tool calls do not time out.
+- Added `ame_load_status` for polling long-running Bronze/Silver/Gold memory builds.
+- Updated AME flow guidance to wait for load completion before querying a corpus.
+
 ## 0.1.10 - 2026-06-12
 
 - Changed `ame connect --client codex` to write the Codex MCP config directly to `~/.codex/config.toml`.

@@ -7,7 +7,7 @@ Codex나 Claude Code가 그 메모리를 보고 답할 수 있게 해주는 loca
 
 사용자가 매번 긴 명령어를 치는 방식보다, **Codex/Claude Code에 AME를 연결하고 자연어로 맡기는 방식**을 우선합니다.
 
-현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.10`입니다.
+현재는 alpha 단계이며 PyPI로 배포 중입니다. 현재 버전은 `0.1.11`입니다.
 
 ## 1. 설치
 
@@ -118,7 +118,7 @@ my-docs 메모리를 기준으로 현재 유효한 결정과 그 근거를 알�
 정상 플로우는 다음 순서입니다.
 
 ```text
-ame_flow -> ame_doctor -> ame_setup execute=false -> 사용자 승인 -> ame_setup execute=true -> ame_load -> memory_query/memory_search
+ame_flow -> ame_doctor -> ame_setup execute=false -> 사용자 승인 -> ame_setup execute=true -> ame_load -> ame_load_status -> memory_query/memory_search
 ```
 
 사양 진단과 모델 추천 단계에서는 corpus가 필요 없습니다. 문서 메모리 구축 단계에서만 corpus 이름을 정하면 됩니다.
@@ -196,6 +196,7 @@ Codex/Claude Code는 AME MCP를 통해 다음 도구를 사용할 수 있습니�
 - `ame_flow`: 단계별 진행 방식과 응답 템플릿 확인
 - `ame_setup`: 추천 모델 다운로드 계획 또는 실행
 - `ame_load`: 문서 폴더를 Bronze/Silver/Gold 메모리로 구축
+- `ame_load_status`: 오래 걸리는 문서 메모리 구축 job 상태 확인
 - `ame_corpora`: 만들어진 corpus 목록 확인
 - `memory_search`, `memory_query`: 구축된 메모리 기반 질문
 - `memory_graph`, `memory_decisions`, `memory_timeline`, `memory_why`: 구조화된 메모리 조회

@@ -7,7 +7,7 @@ The preferred UX is agent-first: connect AME through MCP, then ask Codex or
 Claude Code to diagnose hardware, recommend models, build memory, and answer
 questions in natural language.
 
-Current status: alpha, distributed through PyPI. Current version: `0.1.10`.
+Current status: alpha, distributed through PyPI. Current version: `0.1.11`.
 
 ## 1. Install
 
@@ -126,7 +126,7 @@ Using my-docs memory, tell me the current decisions and their rationale.
 The expected flow is:
 
 ```text
-ame_flow -> ame_doctor -> ame_setup execute=false -> user approval -> ame_setup execute=true -> ame_load -> memory_query/memory_search
+ame_flow -> ame_doctor -> ame_setup execute=false -> user approval -> ame_setup execute=true -> ame_load -> ame_load_status -> memory_query/memory_search
 ```
 
 Hardware diagnosis and model recommendation do not require a corpus. Choose a
@@ -203,6 +203,7 @@ AME exposes these tools to Codex or Claude Code:
 - `ame_flow`: return the step-by-step flow and response templates
 - `ame_setup`: plan or execute recommended model downloads
 - `ame_load`: build Bronze/Silver/Gold memory from a folder
+- `ame_load_status`: check long-running memory build jobs
 - `ame_corpora`: list built corpora
 - `memory_search`, `memory_query`: answer from built memory
 - `memory_graph`, `memory_decisions`, `memory_timeline`, `memory_why`: structured memory lookup

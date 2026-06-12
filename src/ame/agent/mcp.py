@@ -8,6 +8,7 @@ from typing import Any, TextIO
 
 from pydantic import BaseModel, Field
 
+from ame.agent.load_jobs import latest_load_job, read_load_job, start_load_job
 from ame.agent.memory_api import AgentMemoryAPI
 from ame.core.config import load_config
 from ame.core.corpus import create_corpus, require_corpus
@@ -19,13 +20,14 @@ from ame.models.router import ModelRouter
 from ame.pipeline import MemoryPipeline
 
 
-SERVER_VERSION = "0.1.10"
+SERVER_VERSION = "0.1.11"
 
 MCP_INSTRUCTIONS = "\n".join(
     [
         "Use AME MCP tools before shell commands when the user asks about AME setup, AME local model recommendations, local document memory, local RAG, or Bronze/Silver/Gold memory.",
         "Start AME setup conversations with ame_flow, then use ame_doctor for hardware/model diagnosis.",
         "Use ame_setup with execute=false to show a model download plan. Use execute=true only after explicit user approval.",
+        "For llm memory builds, ame_load starts a background job by default. Poll ame_load_status before querying the corpus.",
         "Use bootstrap MCP for hardware/model diagnosis; do not call corpus-bound tools or example corpus IDs for setup diagnosis.",
         "Do not invent or try sample corpus names such as openclaw unless the user explicitly provided that corpus.",
         "When replying in Korean, use polite '~입니다' and '~습니다' style and handle one flow stage at a time.",
@@ -142,7 +144,7 @@ BOOTSTRAP_TOOLS = [
     ),
     McpToolSpec(
         name="ame_load",
-        description="Build Bronze/Silver/Gold memory from a local document folder.",
+        description="Build Bronze/Silver/Gold memory from a local document folder. In llm mode this starts a background job by default; poll ame_load_status.",
         input_schema={
             "type": "object",
             "properties": {
@@ -150,8 +152,23 @@ BOOTSTRAP_TOOLS = [
                 "source_path": {"type": "string"},
                 "mode": {"type": "string", "enum": ["llm", "deterministic"]},
                 "profile": {"type": "string"},
+                "background": {
+                    "type": "boolean",
+                    "description": "Run as a background job. Defaults to true for llm mode and false for deterministic mode.",
+                },
             },
             "required": ["corpus_id", "source_path"],
+        },
+    ),
+    McpToolSpec(
+        name="ame_load_status",
+        description="Check the status of a background ame_load job.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "job_id": {"type": "string"},
+                "corpus_id": {"type": "string", "description": "Return the latest load job for this corpus when job_id is omitted."},
+            },
         },
     ),
     McpToolSpec(
@@ -269,7 +286,22 @@ class BootstrapMcpToolbox:
             if mode not in {"llm", "deterministic"}:
                 raise ValueError("ame_load mode must be llm or deterministic")
             profile = arguments.get("profile")
-            return self._load(corpus_id, Path(source_path).expanduser(), mode=mode, profile=str(profile) if profile else None)
+            background = arguments.get("background")
+            if background is None:
+                run_background = mode == "llm"
+            else:
+                run_background = bool(background)
+            return self._load(
+                corpus_id,
+                Path(source_path).expanduser(),
+                mode=mode,
+                profile=str(profile) if profile else None,
+                background=run_background,
+            )
+        if tool_name == "ame_load_status":
+            job_id = str(arguments.get("job_id") or "").strip()
+            corpus_id = str(arguments.get("corpus_id") or "").strip()
+            return self._load_status(job_id=job_id or None, corpus_id=corpus_id or None)
         if tool_name == "ame_connect":
             corpus_id = str(arguments.get("corpus_id") or "").strip()
             if not corpus_id:
@@ -334,11 +366,28 @@ class BootstrapMcpToolbox:
         payload["results"] = [result.model_dump(mode="json") for result in results]
         return payload
 
-    def _load(self, corpus_id: str, source_path: Path, *, mode: str, profile: str | None) -> dict[str, Any]:
+    def _load(self, corpus_id: str, source_path: Path, *, mode: str, profile: str | None, background: bool) -> dict[str, Any]:
         ensure_runtime_layout()
         create_corpus(corpus_id)
+        if background:
+            job = start_load_job(corpus_id, source_path, mode=mode, profile=profile)
+            return {
+                "status": "started",
+                "background": True,
+                "job_id": job["job_id"],
+                "corpus_id": corpus_id,
+                "source_path": str(source_path),
+                "mode": mode,
+                "message": "Memory build is running in the background. Poll ame_load_status until status is completed or failed.",
+                "next_steps": [
+                    f"Call ame_load_status with job_id={job['job_id']!r}.",
+                    "Do not call memory_query or memory_search until the load job status is completed.",
+                ],
+            }
         report = MemoryPipeline().ingest(corpus_id, source_path, mode=mode, profile=profile)
         return {
+            "status": "completed",
+            "background": False,
             "corpus_id": corpus_id,
             "source_path": str(source_path),
             "report": report.model_dump(mode="json"),
@@ -347,6 +396,33 @@ class BootstrapMcpToolbox:
                 f"Use ame_connect with corpus_id={corpus_id!r} if the user wants a corpus-bound MCP config.",
             ],
         }
+
+    def _load_status(self, *, job_id: str | None, corpus_id: str | None) -> dict[str, Any]:
+        if job_id:
+            job = read_load_job(job_id)
+        else:
+            job = latest_load_job(corpus_id)
+            if job is None:
+                target = f" for corpus_id={corpus_id!r}" if corpus_id else ""
+                return {"status": "not_found", "message": f"No AME load job found{target}."}
+        status = str(job.get("status") or "unknown")
+        payload: dict[str, Any] = {
+            "status": status,
+            "job": job,
+        }
+        if status == "completed":
+            payload["next_steps"] = [
+                f"Use memory_search with corpus_id={job.get('corpus_id')!r} to answer grounded questions.",
+                f"Use memory_query with corpus_id={job.get('corpus_id')!r} for natural-language answers.",
+            ]
+        elif status in {"starting", "running"}:
+            payload["next_steps"] = ["Wait and call ame_load_status again.", "Do not query this corpus until the job is completed."]
+        elif status == "failed":
+            payload["next_steps"] = [
+                "Report the error and stderr_tail to the user.",
+                "Ask whether to retry with deterministic mode or a smaller source folder.",
+            ]
+        return payload
 
     def _connect(self, corpus_id: str, *, client: str) -> dict[str, Any]:
         require_corpus(corpus_id)
@@ -733,26 +809,30 @@ def _ame_flow(*, stage: str = "all") -> dict[str, Any]:
         {
             "stage": "load",
             "user_intents": ["이 폴더를 메모리화해줘", "문서 읽혀서 RAG 구축해줘"],
-            "tool": "ame_load",
+            "tool": "ame_load, then ame_load_status",
             "branching": [
                 "source_path가 없으면 문서 폴더 경로를 요청합니다.",
                 "corpus_id가 없으면 짧은 소문자 corpus 이름을 제안합니다.",
+                "llm 모드의 ame_load는 기본적으로 background job을 시작하므로, 완료될 때까지 ame_load_status를 확인합니다.",
                 "구축이 성공하면 query 단계로 이동합니다.",
             ],
             "response_template": [
                 "대상 폴더와 corpus_id.",
                 "구축 방식: Bronze/Silver/Gold.",
+                "background job이면 job_id와 상태 확인 방법.",
                 "처리 결과: documents, nodes, edges, rejected items.",
                 "저장 위치 또는 corpus name.",
                 "다음 질문 예시.",
             ],
             "output_template": "\n".join(
                 [
-                    "문서 메모리 구축 결과입니다.",
+                    "문서 메모리 구축 상태입니다.",
                     "",
                     "- corpus: {corpus_id}",
                     "- 대상 폴더: {source_path}",
                     "- 구축 방식: Bronze -> Silver -> Gold",
+                    "- 상태: {status}",
+                    "- job_id: {job_id}",
                     "- 처리 문서: {documents}",
                     "- Gold nodes: {gold_nodes}",
                     "- Gold edges: {gold_edges}",
