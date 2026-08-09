@@ -9,7 +9,12 @@ from ame.core.errors import LightRagBackendError
 from ame.gold.schema import GoldEdge, GoldNode
 from ame.gold.store import GoldStore
 from ame.query.result import QueryResult
-from ame.storage.lightrag_adapter import CoreLightRagBackend, LightRagAdapter, effective_embedding_max_token_size
+from ame.storage.lightrag_adapter import (
+    CoreLightRagBackend,
+    LightRagAdapter,
+    effective_embedding_max_token_size,
+    lightrag_llm_model_kwargs,
+)
 
 
 def test_lightrag_adapter_stages_custom_kg_and_status(tmp_path: Path) -> None:
@@ -170,6 +175,47 @@ def test_lightrag_adapter_status_preserves_persisted_initialization(tmp_path: Pa
     assert status["relationships"] == 4
 
 
+def test_lightrag_adapter_status_replaces_stale_staging_path(tmp_path: Path) -> None:
+    corpus_root = tmp_path / "corpus"
+    adapter = LightRagAdapter(corpus_root, config=LightRagConfig(backend="filesystem"))
+    adapter.state_path.write_text(
+        json.dumps(
+            {
+                "initialized": True,
+                "custom_kg_path": str(tmp_path / ".corpus.ingest-old" / "store" / "lightrag" / "custom_kg.json"),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    status = adapter.status()
+
+    assert status["custom_kg_path"] == str(corpus_root / "store" / "lightrag" / "custom_kg.json")
+
+
+def test_lightrag_adapter_status_does_not_reuse_initialization_from_another_backend(tmp_path: Path) -> None:
+    backend = FakeCoreBackend()
+    adapter = LightRagAdapter(tmp_path / "corpus", backend=backend)
+    adapter.state_path.write_text(
+        json.dumps(
+            {
+                "backend": "filesystem",
+                "initialized": True,
+                "ollama_server_error": "old connection error",
+                "backend_error": "old filesystem error",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    status = adapter.status()
+
+    assert status["backend"] == "lightrag-core"
+    assert status["initialized"] is False
+    assert "ollama_server_error" not in status
+    assert "backend_error" not in status
+
+
 def test_lightrag_adapter_core_config_reports_unavailable_when_package_missing(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("ame.storage.lightrag_adapter.light_rag_package_available", lambda: False)
     adapter = LightRagAdapter(tmp_path / "corpus", config=LightRagConfig(backend="core"))
@@ -232,8 +278,9 @@ def test_lightrag_auto_falls_back_when_required_models_missing(tmp_path: Path, m
 
 
 class FakeQueryParam:
-    def __init__(self, mode: str) -> None:
+    def __init__(self, mode: str, **kwargs) -> None:
         self.mode = mode
+        self.kwargs = kwargs
 
 
 class FakeRagCore:
@@ -264,7 +311,26 @@ def test_core_lightrag_backend_uses_core_api_methods() -> None:
     assert rag.initialized is True
     assert rag.custom_kg == {"entities": [], "relationships": [], "chunks": []}
     assert rag.query_param.mode == "hybrid"
+    assert rag.query_param.kwargs == {
+        "top_k": 20,
+        "chunk_top_k": 10,
+        "max_entity_tokens": 1500,
+        "max_relation_tokens": 1500,
+        "max_total_tokens": 12000,
+        "enable_rerank": False,
+        "include_references": True,
+    }
     assert result.answer == "answer: What did OpenClaw use?"
+
+
+def test_lightrag_ollama_kwargs_bound_context_output_and_thinking() -> None:
+    config = LightRagConfig(llm_num_ctx=4096, llm_num_predict=512, llm_thinking=False)
+
+    assert lightrag_llm_model_kwargs(config) == {
+        "host": "http://127.0.0.1:11434",
+        "think": False,
+        "options": {"num_ctx": 4096, "num_predict": 512},
+    }
 
 
 def test_core_lightrag_backend_initializes_before_query() -> None:

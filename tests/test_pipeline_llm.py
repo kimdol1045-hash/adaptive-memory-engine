@@ -62,9 +62,14 @@ def test_pipeline_llm_mode_uses_client_and_records_state(tmp_path: Path, monkeyp
     assert state.last_mode == "llm"
 
 
-def test_pipeline_llm_mode_uses_hardware_routed_default_model(tmp_path: Path, monkeypatch) -> None:
+def test_pipeline_llm_mode_uses_configured_default_model(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("AME_HOME", str(tmp_path / ".ame"))
     ensure_runtime_layout()
+    config_path = tmp_path / ".ame" / "config.toml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace('llm_model = "qwen3:8b"', 'llm_model = "qwen3.6:27b"'),
+        encoding="utf-8",
+    )
     create_corpus("routed")
     notes = tmp_path / "notes"
     notes.mkdir()
@@ -82,7 +87,7 @@ def test_pipeline_llm_mode_uses_hardware_routed_default_model(tmp_path: Path, mo
     report = MemoryPipeline().ingest("routed", notes, mode="llm")
 
     assert report.mode == "llm"
-    assert captured["model"] == "qwen3:8b"
+    assert captured["model"] == "qwen3.6:27b"
     assert captured["base_url"] == "http://127.0.0.1:11434"
 
 

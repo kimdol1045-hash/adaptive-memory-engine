@@ -62,6 +62,7 @@ def test_cli_pipeline(tmp_path: Path, monkeypatch) -> None:
     stats = runner.invoke(app, ["stats", "openclaw"])
     inspect_result = runner.invoke(app, ["inspect", "openclaw"])
     lightrag_status = runner.invoke(app, ["lightrag", "status", "openclaw"])
+    lightrag_sync = runner.invoke(app, ["lightrag", "sync", "openclaw"])
     assert stats.exit_code == 0
     assert "gold_edges: 4" in stats.output
     assert inspect_result.exit_code == 0
@@ -69,6 +70,10 @@ def test_cli_pipeline(tmp_path: Path, monkeypatch) -> None:
     assert lightrag_status.exit_code == 0
     assert "Initialized: True" in lightrag_status.output
     assert "relationships: 4" in lightrag_status.output
+    assert lightrag_sync.exit_code == 0
+    assert "LightRAG synced:" in lightrag_sync.output
+    assert "chunks: 1" in lightrag_sync.output
+    assert "relationships: 4" in lightrag_sync.output
 
 
 def test_cli_chat_keeps_session_open_for_questions(tmp_path: Path, monkeypatch) -> None:

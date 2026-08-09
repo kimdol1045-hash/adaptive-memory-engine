@@ -18,6 +18,7 @@ from ame.agent.load_jobs import cancel_load_job, cleanup_load_artifacts, latest_
 from ame.agent.load_plan import build_load_plan
 from ame.agent.mcp import BootstrapMcpToolbox, LocalMcpToolbox, McpStdioServer
 from ame.agent.memory_api import AgentMemoryAPI
+from ame.bronze.store import BronzeStore
 from ame.connectors.router import ConnectorRouter
 from ame.connectors.google_oauth import (
     GoogleOAuthClient,
@@ -806,6 +807,26 @@ def lightrag_status(corpus_id: str) -> None:
     typer.echo(f"chunks: {status.get('chunks', 0)}")
     typer.echo(f"entities: {status.get('entities', 0)}")
     typer.echo(f"relationships: {status.get('relationships', 0)}")
+
+
+@lightrag_app.command("sync")
+def lightrag_sync(corpus_id: str) -> None:
+    """Rebuild the configured LightRAG backend from current Bronze and Gold data."""
+    root = require_corpus(corpus_id)
+    bronze = BronzeStore(root)
+    gold = GoldStore(root)
+    documents = [document for document in bronze.list() if document.metadata.get("active", True)]
+    nodes = gold.nodes()
+    edges = gold.edges()
+    try:
+        path = LightRagAdapter(root).sync(nodes, edges, documents)
+    except LightRagBackendError as exc:
+        typer.echo(f"LightRAG adapter failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"LightRAG synced: {path}")
+    typer.echo(f"chunks: {len(documents)}")
+    typer.echo(f"entities: {len(nodes)}")
+    typer.echo(f"relationships: {len(edges)}")
 
 
 @mcp_app.command("manifest")

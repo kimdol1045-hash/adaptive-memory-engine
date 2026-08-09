@@ -238,12 +238,15 @@ Codex/Claude Code는 AME MCP를 통해 다음 도구를 사용할 수 있습니�
 - `ame_load_status`: 오래 걸리는 문서 메모리 구축 job 상태와 현재 진행 단계 확인
 - `ame_load_cancel`: 오래 걸리거나 원치 않는 background job 취소
 - `ame_corpus_status`: corpus의 마지막 ingest, LightRAG 상태, Bronze/Silver/Gold 수 확인
+- `ame lightrag sync <corpus>`: 현재 Bronze/Gold 데이터로 설정된 LightRAG 인덱스 재구축
 - `ame_cleanup`: stale staging 폴더와 실패 job 로그 정리
 - `ame_corpora`: 만들어진 corpus 목록 확인
 - `memory_search`, `memory_query`: 구축된 메모리 기반 질문
 - `memory_graph`, `memory_decisions`, `memory_timeline`, `memory_why`: 구조화된 메모리 조회
 
 모델 다운로드는 시간과 디스크를 사용합니다. Codex/Claude Code가 먼저 다운로드 계획을 보여준 뒤, 사용자가 승인하면 실행하는 흐름을 권장합니다.
+
+LightRAG core를 사용할 때는 `adaptive-memory-engine[lightrag]` extra를 설치합니다. `config.toml`의 `[lightrag]`에서 생성 모델, 임베딩 모델·차원, 컨텍스트·출력 상한과 검색 예산을 고정할 수 있습니다. 임베딩 모델이나 차원을 바꾼 뒤에는 `ame lightrag sync <corpus>`로 벡터 인덱스를 다시 만듭니다.
 
 사양 진단이나 모델 추천은 corpus가 필요 없는 bootstrap MCP에서 처리합니다. 문서 메모리 구축 단계에서는 corpus 이름을 직접 지정해도 되고, AME가 자동으로 기존 corpus 업데이트 또는 새 corpus 생성을 선택하게 할 수도 있습니다.
 
@@ -366,6 +369,7 @@ pytest
 
 ## 참고 문서
 
+- `docs/adr/README.md`: 승인된 아키텍처 결정과 ADR 작성 규칙
 - `docs/product_user_flow.md`: 의도한 CLI 제품 흐름
 - `docs/release_distribution_plan.md`: 외부 배포 계획
 - `docs/pypi_release_checklist.md`: PyPI/TestPyPI 배포 체크리스트

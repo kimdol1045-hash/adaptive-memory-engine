@@ -10,7 +10,7 @@ from ame.query.engine import QueryEngine
 
 
 ROOT = Path(__file__).parents[1]
-PRD = ROOT / "adaptive_memory_engine_prd_v2_2_integrated.md"
+PRD = ROOT / "tests" / "fixtures" / "adaptive_memory_engine_prd_v2_2_integrated.md"
 BENCHMARK = ROOT / "benchmark" / "adaptive_memory_engine_benchmark_part2_timeline_supersedes.md"
 MEMORY_MINI_DOCS = ROOT / "tests" / "fixtures" / "memory-mini" / "docs"
 

@@ -12,6 +12,16 @@ llm_model = "qwen3:8b"
 embedding_model = "nomic-embed-text"
 embedding_dim = 768
 max_token_size = 2048
+llm_num_ctx = 12288
+llm_num_predict = 1024
+llm_thinking = false
+query_top_k = 20
+query_chunk_top_k = 10
+query_max_entity_tokens = 1500
+query_max_relation_tokens = 1500
+query_max_total_tokens = 12000
+query_enable_rerank = false
+query_include_references = true
 
 [slack]
 client_id = ""

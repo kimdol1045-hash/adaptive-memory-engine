@@ -9,7 +9,7 @@ from ame.silver.store import SilverStore
 
 
 ROOT = Path(__file__).parents[1]
-PRD = ROOT / "adaptive_memory_engine_prd_v2_2_integrated.md"
+PRD = ROOT / "tests" / "fixtures" / "adaptive_memory_engine_prd_v2_2_integrated.md"
 MEMORY_MINI_DOCS = ROOT / "tests" / "fixtures" / "memory-mini" / "docs"
 
 

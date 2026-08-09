@@ -4,6 +4,8 @@ import platform
 import shutil
 import subprocess
 import ctypes
+import json
+import re
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -38,20 +40,53 @@ class HardwareProfiler:
         )
 
     def _ram_gb(self) -> int:
+        system = platform.system()
         try:
-            if platform.system() == "Darwin":
-                result = subprocess.run(["sysctl", "-n", "hw.memsize"], check=True, capture_output=True, text=True)
-                return round(int(result.stdout.strip()) / 1024**3)
-            if platform.system() == "Linux":
+            if system == "Darwin":
+                return self._darwin_ram_gb()
+            if system == "Linux":
                 meminfo = Path("/proc/meminfo").read_text(encoding="utf-8")
                 for line in meminfo.splitlines():
                     if line.startswith("MemTotal:"):
                         return round(int(line.split()[1]) / 1024**2)
-            if platform.system() == "Windows":
+            if system == "Windows":
                 return self._windows_ram_gb()
         except (OSError, subprocess.CalledProcessError, ValueError):
             return 16
         return 16
+
+    def _darwin_ram_gb(self) -> int:
+        try:
+            result = subprocess.run(
+                ["sysctl", "-n", "hw.memsize"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return round(int(result.stdout.strip()) / 1024**3)
+        except (OSError, subprocess.CalledProcessError, ValueError):
+            pass
+
+        result = subprocess.run(
+            ["system_profiler", "SPHardwareDataType", "-json"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        payload = json.loads(result.stdout)
+        rows = payload.get("SPHardwareDataType") or []
+        if not rows:
+            raise ValueError("system_profiler did not return hardware data")
+        match = re.search(r"([\d.]+)\s*(TB|GB|MB)", str(rows[0].get("physical_memory", "")), re.IGNORECASE)
+        if not match:
+            raise ValueError("system_profiler did not return physical memory")
+        value = float(match.group(1))
+        unit = match.group(2).upper()
+        if unit == "TB":
+            value *= 1024
+        elif unit == "MB":
+            value /= 1024
+        return round(value)
 
     def _windows_ram_gb(self) -> int:
         class MemoryStatusEx(ctypes.Structure):

@@ -43,8 +43,8 @@ dev = [
   "pytest>=8.0",
 ]
 lightrag = [
-  "lightrag-hku",
-  "ollama",
+  "lightrag-hku>=1.5.6,<1.6",
+  "ollama>=0.6.2,<0.7",
 ]
 
 [project.scripts]
@@ -67,6 +67,7 @@ include = [
   "/LICENSE",
   "/pyproject.toml",
   "/docs/product_user_flow.md",
+  "/docs/adr/**",
   "/docs/standalone_distribution.md",
   "/docs/release_distribution_plan.md",
 ]

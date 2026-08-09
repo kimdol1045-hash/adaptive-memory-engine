@@ -25,6 +25,16 @@ class LightRagConfig(BaseModel):
     embedding_model: str = "nomic-embed-text"
     embedding_dim: int = 768
     max_token_size: int = 2048
+    llm_num_ctx: int = 12288
+    llm_num_predict: int = 1024
+    llm_thinking: bool = False
+    query_top_k: int = 20
+    query_chunk_top_k: int = 10
+    query_max_entity_tokens: int = 1500
+    query_max_relation_tokens: int = 1500
+    query_max_total_tokens: int = 12000
+    query_enable_rerank: bool = False
+    query_include_references: bool = True
 
 
 class SlackConfig(BaseModel):

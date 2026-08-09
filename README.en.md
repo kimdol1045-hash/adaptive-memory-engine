@@ -253,6 +253,7 @@ AME exposes these tools to Codex or Claude Code:
 - `ame_load_status`: check long-running memory build jobs and current stage
 - `ame_load_cancel`: cancel a background memory build without replacing committed corpus data
 - `ame_corpus_status`: inspect corpus state, LightRAG state, and Bronze/Silver/Gold counts
+- `ame lightrag sync <corpus>`: rebuild the configured LightRAG index from current Bronze and Gold data
 - `ame_cleanup`: remove stale staging folders and optional failed job logs
 - `ame_corpora`: list built corpora
 - `memory_search`, `memory_query`: answer from built memory
@@ -260,6 +261,11 @@ AME exposes these tools to Codex or Claude Code:
 
 Model downloads can take time and disk space. The agent should show the plan
 first, then run downloads after user approval.
+
+Install the `adaptive-memory-engine[lightrag]` extra to use LightRAG core. The
+`[lightrag]` section in `config.toml` pins generation and embedding models,
+embedding dimensions, generation bounds, and query budgets. Run
+`ame lightrag sync <corpus>` after changing an embedding model or dimension.
 
 Hardware diagnosis and model recommendations should use bootstrap MCP because
 they do not require a corpus. During memory build, users can either provide a
@@ -384,3 +390,11 @@ from memory import Corpus
 ```bash
 pytest
 ```
+
+## Reference Documents
+
+- `docs/adr/README.md`: accepted architecture decisions and ADR workflow
+- `docs/product_user_flow.md`: intended CLI product flow
+- `docs/release_distribution_plan.md`: external distribution plan
+- `docs/pypi_release_checklist.md`: PyPI/TestPyPI release checklist
+- `docs/standalone_distribution.md`: standalone package strategy

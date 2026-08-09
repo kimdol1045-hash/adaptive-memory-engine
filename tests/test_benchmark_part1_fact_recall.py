@@ -8,7 +8,7 @@ from ame.connectors.obsidian import ObsidianConnector
 
 
 ROOT = Path(__file__).parents[1]
-PRD = ROOT / "adaptive_memory_engine_prd_v2_2_integrated.md"
+PRD = ROOT / "tests" / "fixtures" / "adaptive_memory_engine_prd_v2_2_integrated.md"
 BENCHMARK = ROOT / "benchmark" / "adaptive_memory_engine_benchmark_part1_v4_2_scoring_friendly.md"
 
 

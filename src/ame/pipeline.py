@@ -17,10 +17,7 @@ from ame.core.corpus import require_corpus
 from ame.core.state import CorpusStateStore, IngestedDocumentState
 from ame.gold.builder import GoldBuilder
 from ame.gold.store import GoldStore
-from ame.hardware.profiler import HardwareProfiler
 from ame.models.ollama import OllamaClient
-from ame.models.registry import load_default_registry
-from ame.models.router import ModelRouter
 from ame.silver.extractor import DeterministicExtractor
 from ame.silver.llm_extractor import LlmClient, LlmExtractor
 from ame.silver.rationale import RationaleExtractor
@@ -272,10 +269,7 @@ class MemoryPipeline:
         )
 
     def _default_llm_client(self, config) -> OllamaClient:
-        registry = load_default_registry()
-        profile = HardwareProfiler().profile(Path.home())
-        plan = ModelRouter(registry).plan(profile)
-        return OllamaClient(model=plan.models.extract.model, base_url=config.lightrag.ollama_host)
+        return OllamaClient(model=config.lightrag.llm_model, base_url=config.lightrag.ollama_host)
 
 
 def _row_uses_sources(row, source_ids: set[str]) -> bool:

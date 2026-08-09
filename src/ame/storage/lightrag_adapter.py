@@ -162,7 +162,7 @@ class CoreLightRagBackend:
                 working_dir=str(corpus_root / "store" / "lightrag" / "core"),
                 llm_model_func=ollama_model_complete,
                 llm_model_name=config.llm_model,
-                llm_model_kwargs={"host": config.ollama_host},
+                llm_model_kwargs=lightrag_llm_model_kwargs(config),
                 embedding_func=embedding_func,
                 tokenizer=Tokenizer("ame-char", CharTokenizer()),
             )
@@ -191,7 +191,20 @@ class CoreLightRagBackend:
     async def query(self, question: str, mode: str) -> QueryResult:
         if not self.initialized:
             await self.initialize()
-        param = self.query_param_cls(mode=mode) if self.query_param_cls is not None else None
+        param = (
+            self.query_param_cls(
+                mode=mode,
+                top_k=self.config.query_top_k,
+                chunk_top_k=self.config.query_chunk_top_k,
+                max_entity_tokens=self.config.query_max_entity_tokens,
+                max_relation_tokens=self.config.query_max_relation_tokens,
+                max_total_tokens=self.config.query_max_total_tokens,
+                enable_rerank=self.config.query_enable_rerank,
+                include_references=self.config.query_include_references,
+            )
+            if self.query_param_cls is not None
+            else None
+        )
         method = getattr(self.rag, "aquery", None) or getattr(self.rag, "query", None)
         if method is None:
             raise LightRagBackendError("LightRAG core object does not expose query.")
@@ -286,7 +299,22 @@ class LightRagAdapter:
         persisted = json.loads(self.state_path.read_text(encoding="utf-8"))
         current.update(persisted)
         current.update(backend_status)
-        if persisted.get("initialized") is True and backend_status.get("initialized") is False:
+        # Ingest builds in a staging directory and atomically moves it into the
+        # corpus root. Persisted staging paths become stale after that commit,
+        # so status must always expose the adapter's canonical live path.
+        current["custom_kg_path"] = str(self.custom_kg_path)
+        if (
+            backend_status.get("ollama_server_available") is True
+            or persisted.get("backend") != backend_status.get("backend")
+        ):
+            current.pop("ollama_server_error", None)
+        if persisted.get("backend") != backend_status.get("backend"):
+            current.pop("backend_error", None)
+        if (
+            persisted.get("backend") == backend_status.get("backend")
+            and persisted.get("initialized") is True
+            and backend_status.get("initialized") is False
+        ):
             current["initialized"] = True
         return current
 
@@ -348,6 +376,17 @@ def effective_embedding_max_token_size(config: LightRagConfig) -> int:
     if model.startswith("nomic-embed-text"):
         return min(config.max_token_size, 2048)
     return config.max_token_size
+
+
+def lightrag_llm_model_kwargs(config: LightRagConfig) -> dict:
+    return {
+        "host": config.ollama_host,
+        "think": config.llm_thinking,
+        "options": {
+            "num_ctx": config.llm_num_ctx,
+            "num_predict": config.llm_num_predict,
+        },
+    }
 
 
 class CharTokenizer:
